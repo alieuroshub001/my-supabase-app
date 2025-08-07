@@ -1,5 +1,7 @@
+// src/app/admin/layout.tsx
 import { protectRouteSSR } from "@/utils/auth/routeProtection.server";
 import Link from "next/link";
+import Sidebar from "@/components/Admin/Sidebar";
 
 export default async function AdminLayout({
   children,
@@ -10,49 +12,35 @@ export default async function AdminLayout({
   await protectRouteSSR({ allowedRoles: ['admin'] });
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Admin Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-8">
-              <Link href="/admin" className="text-xl font-bold text-gray-900">
-                Admin Panel
-              </Link>
-              <nav className="flex space-x-6">
-                <Link 
-                  href="/admin" 
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Dashboard
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Collapsible Sidebar */}
+      <Sidebar />
+      
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Admin Header */}
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-4">
+              <div className="flex items-center space-x-8">
+                <Link href="/admin" className="text-xl font-bold text-gray-900">
+                  Admin Panel
                 </Link>
-                <Link 
-                  href="/admin/users" 
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Users
-                </Link>
-                <Link 
-                  href="/admin/settings" 
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Settings
-                </Link>
-              </nav>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                Admin
-              </span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                  Admin
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content */}
-      <main>
-        {children}
-      </main>
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto p-4">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

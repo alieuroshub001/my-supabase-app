@@ -250,30 +250,7 @@ export default function TeamDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Team Dashboard</h1>
-              <p className="text-gray-600 mt-1">Project work and task management</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm text-gray-500">Welcome back,</p>
-                <p className="font-semibold text-gray-900">{profile?.full_name}</p>
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+  
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Work Overview Stats */}
@@ -541,6 +518,5 @@ export default function TeamDashboard() {
           </div>
         )}
       </div>
-    </div>
   );
 }

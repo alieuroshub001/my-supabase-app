@@ -1,3 +1,4 @@
+// src/app/hr/dashboard/page.tsx
 import { protectRouteSSR } from "@/utils/auth/routeProtection.server";
 import HRDashboard from "@/components/HR/Dashboard";
 
