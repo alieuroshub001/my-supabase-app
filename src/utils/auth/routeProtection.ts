@@ -15,6 +15,9 @@ export async function checkUserRole() {
   const supabase = createClient();
   try {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      console.error('Supabase getUser error:', userError);
+    }
     if (userError || !user) {
       return { user: null, profile: null, role: null };
     }
@@ -89,6 +92,9 @@ export async function checkUserRoleSSR() {
   );
   try {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      console.error('Supabase getUser error (SSR):', userError);
+    }
     if (userError || !user) {
       return { user: null, profile: null, role: null };
     }
