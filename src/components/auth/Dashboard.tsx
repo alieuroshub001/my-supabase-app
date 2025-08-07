@@ -92,59 +92,107 @@ export default function Dashboard() {
 
     const fetchUserStats = async (userId: string) => {
       try {
-        // Get project count
-        const { data: projectsData } = await supabase
-          .from("project_members")
-          .select("project_id")
-          .eq("user_id", userId);
+        // Initialize default stats
+        const defaultStats = {
+          totalProjects: 0,
+          activeTasks: 0,
+          completedTasks: 0,
+          totalTimeLogged: 0,
+          unreadNotifications: 0,
+        };
 
-        const { data: ownedProjectsData } = await supabase
-          .from("projects")
-          .select("id")
-          .eq("owner_id", userId);
+        // Get project count with error handling
+        let totalProjects = 0;
+        try {
+          const { data: projectsData, error: projectsError } = await supabase
+            .from("project_members")
+            .select("project_id")
+            .eq("user_id", userId);
 
-        const totalProjects = (projectsData?.length || 0) + (ownedProjectsData?.length || 0);
+          const { data: ownedProjectsData, error: ownedError } = await supabase
+            .from("projects")
+            .select("id")
+            .eq("owner_id", userId);
 
-        // Get task statistics
-        const { data: activeTasksData } = await supabase
-          .from("tasks")
-          .select("id")
-          .eq("assignee_id", userId)
-          .in("status", ["todo", "in_progress"]);
+          if (!projectsError && !ownedError) {
+            totalProjects = (projectsData?.length || 0) + (ownedProjectsData?.length || 0);
+          }
+        } catch (err) {
+          console.warn("Error fetching project stats:", err);
+        }
 
-        const { data: completedTasksData } = await supabase
-          .from("tasks")
-          .select("id")
-          .eq("assignee_id", userId)
-          .eq("status", "done");
+        // Get task statistics with error handling
+        let activeTasks = 0, completedTasks = 0;
+        try {
+          const { data: activeTasksData, error: activeError } = await supabase
+            .from("tasks")
+            .select("id")
+            .eq("assignee_id", userId)
+            .in("status", ["todo", "in_progress"]);
 
-        // Get total time logged
-        const { data: timeEntriesData } = await supabase
-          .from("time_entries")
-          .select("duration")
-          .eq("user_id", userId);
+          const { data: completedTasksData, error: completedError } = await supabase
+            .from("tasks")
+            .select("id")
+            .eq("assignee_id", userId)
+            .eq("status", "done");
 
-        const totalTimeLogged = timeEntriesData?.reduce((total, entry) => {
-          return total + (entry.duration || 0);
-        }, 0) || 0;
+          if (!activeError) activeTasks = activeTasksData?.length || 0;
+          if (!completedError) completedTasks = completedTasksData?.length || 0;
+        } catch (err) {
+          console.warn("Error fetching task stats:", err);
+        }
 
-        // Get unread notifications
-        const { data: notificationsData } = await supabase
-          .from("notifications")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("is_read", false);
+        // Get total time logged with error handling
+        let totalTimeLogged = 0;
+        try {
+          const { data: timeEntriesData, error: timeError } = await supabase
+            .from("time_entries")
+            .select("duration")
+            .eq("user_id", userId);
+
+          if (!timeError && timeEntriesData) {
+            totalTimeLogged = timeEntriesData.reduce((total, entry) => {
+              return total + (entry.duration || 0);
+            }, 0) || 0;
+            totalTimeLogged = Math.round((totalTimeLogged / 3600) * 100) / 100;
+          }
+        } catch (err) {
+          console.warn("Error fetching time stats:", err);
+        }
+
+        // Get unread notifications with error handling
+        let unreadNotifications = 0;
+        try {
+          const { data: notificationsData, error: notificationError } = await supabase
+            .from("notifications")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("is_read", false);
+
+          if (!notificationError) {
+            unreadNotifications = notificationsData?.length || 0;
+          }
+        } catch (err) {
+          console.warn("Error fetching notification stats:", err);
+        }
 
         setStats({
           totalProjects,
-          activeTasks: activeTasksData?.length || 0,
-          completedTasks: completedTasksData?.length || 0,
-          totalTimeLogged: Math.round((totalTimeLogged / 3600) * 100) / 100,
-          unreadNotifications: notificationsData?.length || 0,
+          activeTasks,
+          completedTasks,
+          totalTimeLogged,
+          unreadNotifications,
         });
       } catch (err) {
         console.error("Stats fetch error:", err);
-        // Don't fail the entire dashboard for stats errors
+        // Set default stats if everything fails
+        setStats({
+          totalProjects: 0,
+          activeTasks: 0,
+          completedTasks: 0,
+          totalTimeLogged: 0,
+          unreadNotifications: 0,
+        });
       }
     };
 
@@ -179,7 +227,12 @@ export default function Dashboard() {
         setError(null);
         
         // Fetch stats after profile creation
-        await fetchUserStats(user.id);
+        try {
+          await fetchUserStats(user.id);
+        } catch (statsError) {
+          console.warn('Stats fetch failed after profile creation:', statsError);
+          // Don't fail profile creation if stats fail
+        }
       } else {
         setError("Failed to create profile. Please try again or contact support.");
         console.error('Profile creation failed:', result.error);
@@ -612,6 +665,4 @@ export default function Dashboard() {
   );
 }
 
-function fetchUserStats(id: string) {
-  throw new Error("Function not implemented.");
-}
+
