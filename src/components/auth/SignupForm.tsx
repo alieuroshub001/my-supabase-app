@@ -40,7 +40,7 @@ export default function SignupForm() {
     }
 
     try {
-      // Step 1: Sign up the user with metadata
+      // Step 1: Sign up the user with proper user_metadata
       const { data, error: signupError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
@@ -72,13 +72,14 @@ export default function SignupForm() {
 
       if (data.user) {
         console.log('User created successfully:', data.user.id);
+        console.log('User metadata:', data.user.user_metadata);
 
         // Step 2: For confirmed users (in development), create profile manually as fallback
         if (data.user.email_confirmed_at) {
           console.log('Email already confirmed, creating profile manually...');
           await createProfileManually(data.user);
         } else {
-          console.log('Email confirmation required, profile will be created after confirmation');
+          console.log('Email confirmation required, profile will be created after confirmation via database trigger');
         }
 
         setSuccess(true);
@@ -95,7 +96,7 @@ export default function SignupForm() {
   const createProfileManually = async (user: any) => {
     try {
       // Wait a moment for any database triggers to complete
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Check if profile already exists
       const { data: existingProfile, error: checkError } = await supabase
@@ -112,8 +113,8 @@ export default function SignupForm() {
       if (checkError && checkError.code === 'PGRST116') {
         console.log('Profile not found, creating manually...');
         
-        // Create profile manually
-        const { error: profileError } = await supabase
+        // Create profile manually with proper error handling
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .insert({
             id: user.id,
@@ -124,13 +125,30 @@ export default function SignupForm() {
             job_title: jobTitle.trim() || null,
             phone: phone.trim() || null,
             is_active: true,
-          });
+          })
+          .select()
+          .single();
 
         if (profileError) {
           console.error('Manual profile creation failed:', profileError);
-          // Don't throw error, just log it
+          // Try to create a basic profile as fallback
+          const { error: basicProfileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              email: email.trim().toLowerCase(),
+              full_name: fullName.trim(),
+              role: 'team',
+              is_active: true,
+            });
+          
+          if (basicProfileError) {
+            console.error('Basic profile creation also failed:', basicProfileError);
+          } else {
+            console.log('Basic profile created as fallback');
+          }
         } else {
-          console.log('Profile created manually');
+          console.log('Profile created manually:', profileData);
           
           // Create initial leave balances
           const currentYear = new Date().getFullYear();
@@ -148,6 +166,8 @@ export default function SignupForm() {
             console.log('Leave balances created successfully');
           }
         }
+      } else if (checkError) {
+        console.error('Error checking for existing profile:', checkError);
       }
     } catch (err) {
       console.error('Error in createProfileManually:', err);
