@@ -44,6 +44,17 @@ export default function Dashboard() {
   const router = useRouter();
   const supabase = createClient();
 
+  // Force reload if ?refresh=1 is present to ensure session cookie is picked up
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('refresh') === '1') {
+        url.searchParams.delete('refresh');
+        window.location.replace(url.pathname + url.search);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
