@@ -3,11 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentUserWithProfile, createUserProfile, debugUserState } from "@/utils/profile/profileUtils";
-<<<<<<< HEAD
+// Use the correct import path for your project:
 import { getDashboardRoute } from "@/utils/auth/routeProtection.shared";
-=======
-import { getDashboardRoute } from "@/utils/auth/routeProtection.ts";
->>>>>>> eea03c135331f4e5e75a46a601d7934ddc9b1bf5
+// import { getDashboardRoute } from "@/utils/auth/routeProtection.ts";
 
 type UserProfile = {
   id: string;
@@ -36,35 +34,35 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [needsProfileCreation, setNeedsProfileCreation] = useState(false);
   const [creatingProfile, setCreatingProfile] = useState(false);
+  const [autoCreatingProfile, setAutoCreatingProfile] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Force reload if ?refresh=1 is present to ensure session cookie is picked up
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('refresh') === '1') {
+        url.searchParams.delete('refresh');
+        window.location.replace(url.pathname + url.search);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchUserData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle redirect to role-specific dashboard
   useEffect(() => {
     if (profile && !isRedirecting) {
       const dashboardRoute = getDashboardRoute(profile.role);
-      
-      console.log('Dashboard redirect check:', {
-        currentPath: window.location.pathname,
-        targetRoute: dashboardRoute,
-        profileRole: profile.role
-      });
-      
-      // Check if we're already on the correct route
+
       if (window.location.pathname !== dashboardRoute) {
         setIsRedirecting(true);
-        
-        console.log('Redirecting to:', dashboardRoute);
-        
-        // Small delay to ensure state is updated before redirect
         setTimeout(() => {
           router.replace(dashboardRoute);
         }, 500);
-      } else {
-        console.log('Already on correct route');
       }
     }
   }, [profile, router, isRedirecting]);
@@ -72,7 +70,6 @@ export default function Dashboard() {
   // Handle redirect to login if no user (only after loading is complete)
   useEffect(() => {
     if (!loading && !profile && !needsProfileCreation && !error && !isRedirecting) {
-      // Only redirect if we're not already redirecting and have completed loading
       router.replace('/login');
     }
   }, [loading, profile, needsProfileCreation, error, router, isRedirecting]);
@@ -86,50 +83,69 @@ export default function Dashboard() {
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const result = await getCurrentUserWithProfile();
-      console.log('Dashboard fetchUserData result:', result);
-      
-      // Debug: Check if user exists in auth.users
-      if (result.user) {
-        console.log('User found:', {
-          id: result.user.id,
-          email: result.user.email,
-          metadata: result.user.user_metadata
-        });
-      } else {
-        console.log('No user found in result');
-      }
 
-      if (result.error && !result.needsProfileCreation) {
-        console.error('Error fetching user data:', result.error);
-        setError(typeof result.error === 'string' ? result.error : "An error occurred");
-        return;
-      }
-
-      if (!result.user) {
-        console.log('No user found, redirecting to login');
-        router.replace('/login');
+      if (result.error && !result.user) {
+        router.replace("/login");
         return;
       }
 
       if (result.needsProfileCreation && result.user) {
-        console.log('Profile creation needed for user:', result.user.id);
-        setNeedsProfileCreation(true);
-        setError("Your profile is missing. This might be due to an incomplete signup process.");
-        return;
+        setAutoCreatingProfile(true);
+
+        // Wait a moment for database trigger to complete, then check again
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Check if profile was created by trigger
+        const retryResult = await getCurrentUserWithProfile();
+        if (retryResult.profile && !retryResult.needsProfileCreation) {
+          setProfile(retryResult.profile);
+          setNeedsProfileCreation(false);
+          setAutoCreatingProfile(false);
+          setError(null);
+          return;
+        }
+
+        // Automatically create profile for first-time users
+        try {
+          const profileResult = await createUserProfile({
+            id: result.user.id,
+            email: result.user.email!,
+            full_name: result.user.user_metadata?.full_name || result.user.email!.split('@')[0],
+            role: (result.user.user_metadata?.role as 'admin' | 'hr' | 'team' | 'client') || 'team',
+            department: result.user.user_metadata?.department,
+            job_title: result.user.user_metadata?.job_title,
+            phone: result.user.user_metadata?.phone,
+          });
+
+          if (profileResult.success && profileResult.profile) {
+            setProfile(profileResult.profile);
+            setNeedsProfileCreation(false);
+            setAutoCreatingProfile(false);
+            setError(null);
+            return;
+          } else {
+            setNeedsProfileCreation(true);
+            setAutoCreatingProfile(false);
+            setError("We're setting up your profile. Please wait a moment and try again.");
+            return;
+          }
+        } catch (err) {
+          setNeedsProfileCreation(true);
+          setAutoCreatingProfile(false);
+          setError("We're setting up your profile. Please wait a moment and try again.");
+          return;
+        }
       }
 
       if (!result.profile) {
-        console.error('No profile found and could not create one');
-        setError("Unable to load your profile. Please try again.");
+        setError("Unable to load your profile. Please try refreshing the page or contact support.");
         return;
       }
 
-      console.log('Profile loaded successfully:', result.profile);
       setProfile(result.profile);
       setNeedsProfileCreation(false);
 
     } catch (err) {
-      console.error('Unexpected error in fetchUserData:', err);
       setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
@@ -139,10 +155,11 @@ export default function Dashboard() {
   const handleCreateProfile = async () => {
     try {
       setCreatingProfile(true);
+      setAutoCreatingProfile(false);
       setError(null);
 
       const result = await getCurrentUserWithProfile();
-      
+
       if (!result.user) {
         setError("No user found. Please log in again.");
         return;
@@ -159,7 +176,6 @@ export default function Dashboard() {
       });
 
       if (profileResult.success && profileResult.profile) {
-        console.log('Profile created successfully:', profileResult.profile);
         setProfile(profileResult.profile);
         setNeedsProfileCreation(false);
         setError(null);
@@ -167,7 +183,6 @@ export default function Dashboard() {
         setError(typeof profileResult.error === 'string' ? profileResult.error : "Failed to create profile. Please try again.");
       }
     } catch (err) {
-      console.error('Error creating profile:', err);
       setError("An error occurred while creating your profile. Please try again.");
     } finally {
       setCreatingProfile(false);
@@ -181,29 +196,22 @@ export default function Dashboard() {
       await supabase.auth.signOut();
       router.push('/login');
     } catch (error) {
-      console.error('Error signing out:', error);
+      // ignore
     }
   };
 
   const handleDebug = async () => {
-    console.log('=== Dashboard Debug ===');
-    console.log('Current state:', {
-      loading,
-      error,
-      profile: !!profile,
-      needsProfileCreation,
-      creatingProfile,
-      isRedirecting
-    });
     await debugUserState();
   };
 
-  if (loading) {
+  if (loading || autoCreatingProfile) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your dashboard...</p>
+          <p className="text-gray-600">
+            {autoCreatingProfile ? "Setting up your profile..." : "Loading your dashboard..."}
+          </p>
         </div>
       </div>
     );
@@ -218,10 +226,10 @@ export default function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Profile Setup Required</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Welcome! Setting Up Your Profile</h2>
           <p className="text-gray-600 mb-6">
-            Your account exists but your profile wasn't created properly during signup. 
-            We'll create it now with your basic information.
+            We're setting up your profile with your account information. 
+            This should only take a moment.
           </p>
           
           {error && (
@@ -236,7 +244,7 @@ export default function Dashboard() {
               disabled={creatingProfile}
               className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
-              {creatingProfile ? "Creating Profile..." : "Create My Profile"}
+              {creatingProfile ? "Setting Up Profile..." : "Complete Setup"}
             </button>
             
             <button
@@ -304,4 +312,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

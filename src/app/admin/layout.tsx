@@ -1,4 +1,4 @@
-import { protectRoute } from "@/utils/auth/routeProtection.ts";
+import { protectRouteSSR } from "@/utils/auth/routeProtection.server";
 import Link from "next/link";
 
 export default async function AdminLayout({
@@ -7,7 +7,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   // Protect the layout - only admin users can access
-  await protectRoute({ allowedRoles: ['admin'] });
+  await protectRouteSSR({ allowedRoles: ['admin'] });
 
   return (
     <div className="min-h-screen bg-gray-50">

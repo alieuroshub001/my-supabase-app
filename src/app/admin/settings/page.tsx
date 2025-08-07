@@ -1,8 +1,8 @@
-import { protectRoute } from "@/utils/auth/routeProtection.ts";
+import { protectRouteSSR } from "@/utils/auth/routeProtection.server";
 
 export default async function AdminSettingsPage() {
   // Protect the route - only admin users can access
-  await protectRoute({ allowedRoles: ['admin'] });
+  await protectRouteSSR({ allowedRoles: ['admin'] });
   
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
