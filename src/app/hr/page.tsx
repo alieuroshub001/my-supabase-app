@@ -1,4 +1,4 @@
-import { protectRoute } from "@/utils/auth/routeProtection";
+import { protectRoute } from "@/utils/auth/routeProtection.ts";
 import HRDashboard from "@/components/HR/Dashboard";
 
 export default async function HRPage() {

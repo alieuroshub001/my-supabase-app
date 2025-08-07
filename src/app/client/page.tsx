@@ -1,4 +1,4 @@
-import { protectRoute } from "@/utils/auth/routeProtection";
+import { protectRoute } from "@/utils/auth/routeProtection.ts";
 import ClientDashboard from "@/components/Client/Dashboard";
 
 export default async function ClientPage() {

@@ -1,4 +1,4 @@
-import { protectRoute } from "@/utils/auth/routeProtection";
+import { protectRoute } from "@/utils/auth/routeProtection.ts";
 import AdminDashboard from "@/components/Admin/Dashboard";
 
 export default async function AdminPage() {

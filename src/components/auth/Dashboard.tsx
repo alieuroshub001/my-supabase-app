@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentUserWithProfile, createUserProfile, debugUserState } from "@/utils/profile/profileUtils";
-import { getDashboardRoute } from "@/utils/auth/routeProtection";
+import { getDashboardRoute } from "@/utils/auth/routeProtection.ts";
 
 type UserProfile = {
   id: string;

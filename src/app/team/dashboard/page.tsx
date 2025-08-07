@@ -1,4 +1,4 @@
-import { protectRouteSSR } from "@/utils/auth/routeProtection";
+import { protectRouteSSR } from "@/utils/auth/routeProtection.ts";
 import TeamDashboard from "@/components/Team/Dashboard";
 
 export default async function TeamPage() {

@@ -1,4 +1,4 @@
-import { protectRoute } from "@/utils/auth/routeProtection";
+import { protectRoute } from "@/utils/auth/routeProtection.ts";
 
 export default async function AdminSettingsPage() {
   // Protect the route - only admin users can access
