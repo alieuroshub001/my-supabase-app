@@ -81,7 +81,7 @@ export async function checkUserRoleSSR() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (key) => cookies().get(key)?.value,
+        get: async (key) => (await cookies()).get(key)?.value,
         set: () => {},
         remove: () => {},
       },
