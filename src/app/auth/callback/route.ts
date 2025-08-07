@@ -39,6 +39,6 @@ export async function GET(request: Request) {
     }
   }
 
-  // Fallback to dashboard
-  return NextResponse.redirect(requestUrl.origin + "/dashboard");
+  // Fallback to home
+  return NextResponse.redirect(requestUrl.origin + "/");
 }
