@@ -3,7 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentUserWithProfile, createUserProfile, debugUserState } from "@/utils/profile/profileUtils";
+<<<<<<< HEAD
 import { getDashboardRoute } from "@/utils/auth/routeProtection.shared";
+=======
+import { getDashboardRoute } from "@/utils/auth/routeProtection.ts";
+>>>>>>> eea03c135331f4e5e75a46a601d7934ddc9b1bf5
 
 type UserProfile = {
   id: string;
