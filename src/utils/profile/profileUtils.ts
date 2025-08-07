@@ -127,12 +127,46 @@ export const getCurrentUserWithProfile = async () => {
 
     if (!profileResult.hasProfile) {
       console.warn('User exists but profile is missing. User ID:', user.id);
-      return {
-        user,
-        profile: null,
-        error: new Error('Profile not found'),
-        needsProfileCreation: true
-      };
+      
+      // Try to automatically create the profile
+      try {
+        console.log('Attempting to create profile for user:', user.id);
+        const createResult = await createUserProfile({
+          id: user.id,
+          email: user.email!,
+          full_name: user.user_metadata?.full_name || user.email!.split('@')[0],
+          role: (user.user_metadata?.role as 'admin' | 'hr' | 'team' | 'client') || 'team',
+          department: user.user_metadata?.department,
+          job_title: user.user_metadata?.job_title,
+          phone: user.user_metadata?.phone,
+        });
+
+        if (createResult.success && createResult.profile) {
+          console.log('Profile created successfully:', createResult.profile);
+          return {
+            user,
+            profile: createResult.profile,
+            error: null,
+            needsProfileCreation: false
+          };
+        } else {
+          console.error('Failed to create profile:', createResult.error);
+          return {
+            user,
+            profile: null,
+            error: null,
+            needsProfileCreation: true
+          };
+        }
+      } catch (createError) {
+        console.error('Error creating profile:', createError);
+        return {
+          user,
+          profile: null,
+          error: null,
+          needsProfileCreation: true
+        };
+      }
     }
 
     return {
