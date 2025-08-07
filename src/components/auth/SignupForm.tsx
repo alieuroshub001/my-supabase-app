@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/utils/supabase/client";
+import { userCrud } from "@/utils/database/userCrud";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -40,7 +41,7 @@ export default function SignupForm() {
     }
 
     try {
-      // Step 1: Sign up the user with metadata
+      // Step 1: Sign up the user with proper user_metadata
       const { data, error: signupError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
@@ -72,13 +73,14 @@ export default function SignupForm() {
 
       if (data.user) {
         console.log('User created successfully:', data.user.id);
+        console.log('User metadata:', data.user.user_metadata);
 
         // Step 2: For confirmed users (in development), create profile manually as fallback
         if (data.user.email_confirmed_at) {
           console.log('Email already confirmed, creating profile manually...');
           await createProfileManually(data.user);
         } else {
-          console.log('Email confirmation required, profile will be created after confirmation');
+          console.log('Email confirmation required, profile will be created after confirmation via database trigger');
         }
 
         setSuccess(true);
@@ -95,14 +97,12 @@ export default function SignupForm() {
   const createProfileManually = async (user: any) => {
     try {
       // Wait a moment for any database triggers to complete
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Check if profile already exists
-      const { data: existingProfile, error: checkError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .single();
+      console.log('Checking if profile exists for user:', user.id);
+      
+      // Check if profile already exists using CRUD operations
+      const { data: existingProfile, error: checkError } = await userCrud.getUserProfile(user.id);
 
       if (existingProfile) {
         console.log('Profile already exists for user:', user.id);
@@ -110,44 +110,43 @@ export default function SignupForm() {
       }
 
       if (checkError && checkError.code === 'PGRST116') {
-        console.log('Profile not found, creating manually...');
+        console.log('Profile not found, creating manually using CRUD operations...');
         
-        // Create profile manually
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            email: email.trim().toLowerCase(),
-            full_name: fullName.trim(),
-            role: role,
-            department: department.trim() || null,
-            job_title: jobTitle.trim() || null,
-            phone: phone.trim() || null,
-            is_active: true,
-          });
+        // Create profile manually using CRUD operations
+        const { data: profileData, error: profileError } = await userCrud.createProfile({
+          id: user.id,
+          email: email.trim().toLowerCase(),
+          full_name: fullName.trim(),
+          role: role,
+          department: department.trim() || null,
+          job_title: jobTitle.trim() || null,
+          phone: phone.trim() || null,
+          is_active: true,
+        });
 
         if (profileError) {
           console.error('Manual profile creation failed:', profileError);
-          // Don't throw error, just log it
-        } else {
-          console.log('Profile created manually');
+          // Try to create a basic profile as fallback using direct supabase call
+          const { error: basicProfileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              email: email.trim().toLowerCase(),
+              full_name: fullName.trim(),
+              role: 'team',
+              is_active: true,
+            });
           
-          // Create initial leave balances
-          const currentYear = new Date().getFullYear();
-          const { error: leaveError } = await supabase
-            .from('leave_balances')
-            .insert([
-              { user_id: user.id, leave_type: 'casual', total_days: 12, used_days: 0, remaining_days: 12, year: currentYear },
-              { user_id: user.id, leave_type: 'sick', total_days: 10, used_days: 0, remaining_days: 10, year: currentYear },
-              { user_id: user.id, leave_type: 'annual', total_days: 21, used_days: 0, remaining_days: 21, year: currentYear }
-            ]);
-
-          if (leaveError) {
-            console.error('Leave balance creation failed:', leaveError);
+          if (basicProfileError) {
+            console.error('Basic profile creation also failed:', basicProfileError);
           } else {
-            console.log('Leave balances created successfully');
+            console.log('Basic profile created as fallback');
           }
+        } else {
+          console.log('Profile created successfully using CRUD operations:', profileData);
         }
+      } else if (checkError) {
+        console.error('Error checking for existing profile:', checkError);
       }
     } catch (err) {
       console.error('Error in createProfileManually:', err);
