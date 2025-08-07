@@ -635,8 +635,8 @@ export default function Dashboard() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1">Role</label>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getRoleBadgeColor(profile.role)}`}>
-                      {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getRoleBadgeColor(profile.role || 'team')}`}>
+                      {profile.role ? (profile.role as string).charAt(0).toUpperCase() + (profile.role as string).slice(1) : 'Unknown'}
                     </span>
                   </div>
 

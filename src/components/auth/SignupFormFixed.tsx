@@ -78,7 +78,6 @@ export default function SignupFormFixed() {
         console.log('User created successfully:', {
           id: data.user.id,
           email: data.user.email,
-          raw_user_meta_data: data.user.raw_user_meta_data,
           user_metadata: data.user.user_metadata
         });
 
