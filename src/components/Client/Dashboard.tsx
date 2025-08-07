@@ -68,6 +68,12 @@ export default function ClientDashboard() {
           .single();
 
         if (profileError || !profileData) {
+          // If no profile exists, redirect to root for profile creation
+          if (profileError?.code === 'PGRST116') {
+            console.log('No profile found for client user, redirecting to root for profile creation');
+            router.push("/");
+            return;
+          }
           setError("Unable to load your profile.");
           return;
         }

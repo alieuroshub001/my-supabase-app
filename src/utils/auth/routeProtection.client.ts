@@ -33,14 +33,17 @@ export async function checkUserRole() {
 export async function protectRoute(config: ProtectedRouteConfig) {
   const { user, profile, role } = await checkUserRole();
   if (!user) redirect('/login');
-  if (!profile) redirect('/');
-  if (!role || !config.allowedRoles.includes(role)) {
+  
+  // If no profile exists, allow the component to handle profile creation
+  // Only redirect if we have a profile but wrong role
+  if (profile && role && !config.allowedRoles.includes(role)) {
     if (role === 'admin') redirect('/admin/dashboard');
     else if (role === 'hr') redirect('/hr/dashboard');
     else if (role === 'team') redirect('/team/dashboard');
     else if (role === 'client') redirect('/client/dashboard');
     else redirect('/');
   }
+  
   return { user, profile, role };
 }
 
