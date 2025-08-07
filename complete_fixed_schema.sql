@@ -2,6 +2,63 @@
 -- COMPLETE SUPABASE SCHEMA WITH FIXED SIGNUP TRIGGER
 -- =====================================================
 
+-- =====================================================
+-- CLEANUP: DROP ALL EXISTING TABLES AND FUNCTIONS
+-- =====================================================
+
+-- Drop all triggers first
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
+DROP TRIGGER IF EXISTS update_projects_updated_at ON projects;
+DROP TRIGGER IF EXISTS update_tasks_updated_at ON tasks;
+DROP TRIGGER IF EXISTS update_task_comments_updated_at ON task_comments;
+DROP TRIGGER IF EXISTS update_leave_balance ON leave_balances;
+
+-- Drop all functions
+DROP FUNCTION IF EXISTS handle_new_user();
+DROP FUNCTION IF EXISTS update_updated_at_column();
+DROP FUNCTION IF EXISTS calculate_remaining_days();
+DROP FUNCTION IF EXISTS test_profile_creation(text, text, text);
+DROP FUNCTION IF EXISTS debug_auth_users();
+DROP FUNCTION IF EXISTS create_missing_profiles();
+
+-- Drop all tables in correct order (considering foreign key dependencies)
+DROP TABLE IF EXISTS calendar_events CASCADE;
+DROP TABLE IF EXISTS custom_reports CASCADE;
+DROP TABLE IF EXISTS system_logs CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS timesheets CASCADE;
+DROP TABLE IF EXISTS activity_logs CASCADE;
+DROP TABLE IF EXISTS time_entries CASCADE;
+DROP TABLE IF EXISTS direct_messages CASCADE;
+DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS channel_members CASCADE;
+DROP TABLE IF EXISTS channels CASCADE;
+DROP TABLE IF EXISTS onboarding_checklists CASCADE;
+DROP TABLE IF EXISTS leave_balances CASCADE;
+DROP TABLE IF EXISTS leave_requests CASCADE;
+DROP TABLE IF EXISTS attendance CASCADE;
+DROP TABLE IF EXISTS employee_documents CASCADE;
+DROP TABLE IF EXISTS task_activities CASCADE;
+DROP TABLE IF EXISTS task_attachments CASCADE;
+DROP TABLE IF EXISTS task_comments CASCADE;
+DROP TABLE IF EXISTS tasks CASCADE;
+DROP TABLE IF EXISTS project_members CASCADE;
+DROP TABLE IF EXISTS projects CASCADE;
+DROP TABLE IF EXISTS user_sessions CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+
+-- Drop all custom types
+DROP TYPE IF EXISTS notification_type CASCADE;
+DROP TYPE IF EXISTS channel_type CASCADE;
+DROP TYPE IF EXISTS document_type CASCADE;
+DROP TYPE IF EXISTS leave_type CASCADE;
+DROP TYPE IF EXISTS leave_status CASCADE;
+DROP TYPE IF EXISTS project_status CASCADE;
+DROP TYPE IF EXISTS task_status CASCADE;
+DROP TYPE IF EXISTS task_priority CASCADE;
+DROP TYPE IF EXISTS user_role CASCADE;
+
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
