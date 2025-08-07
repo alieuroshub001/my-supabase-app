@@ -1,5 +1,5 @@
 import LoginForm from "@/components/auth/LoginForm";
-import AuthDebugger from "@/components/debug/AuthDebugger";
+//import AuthDebugger from "@/components/debug/AuthDebugger";
 
 export default function LoginPage() {
   return (
@@ -9,9 +9,9 @@ export default function LoginPage() {
           <div className="flex items-center justify-center">
             <LoginForm />
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <AuthDebugger />
-          </div>
+            {/* <div className="bg-white rounded-lg shadow-md p-6">
+         {<AuthDebugger />
+          </div>*/}
         </div>
       </div>
     </div>

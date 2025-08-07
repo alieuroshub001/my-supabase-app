@@ -1,4 +1,4 @@
-"use client";
+/*"use client";
 
 import { createClient } from "@/utils/supabase/client";
 import { useState, useEffect } from "react";
@@ -128,4 +128,4 @@ export default function AuthDebugger() {
       )}
     </div>
   );
-}
+}*/
