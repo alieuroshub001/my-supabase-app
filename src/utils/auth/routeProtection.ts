@@ -35,22 +35,28 @@ export async function checkUserRole() {
 
 export async function protectRoute(config: ProtectedRouteConfig) {
   const { user, profile, role } = await checkUserRole();
+  
   console.log('Route protection check:', {
     hasUser: !!user,
     hasProfile: !!profile,
     userRole: role,
     allowedRoles: config.allowedRoles
   });
+  
+  // If no user, redirect to login
   if (!user) {
     console.log('No user found, redirecting to login');
     redirect('/login');
   }
+  
   if (!profile) {
     console.log('No profile found, redirecting to root for profile creation');
     redirect('/');
   }
+  
   if (!role || !config.allowedRoles.includes(role)) {
     console.log('User role not allowed, redirecting to appropriate dashboard');
+    // Redirect to appropriate dashboard based on user's role
     if (role === 'admin') {
       redirect('/admin/dashboard');
     } else if (role === 'hr') {
@@ -63,6 +69,7 @@ export async function protectRoute(config: ProtectedRouteConfig) {
       redirect('/');
     }
   }
+  
   console.log('Route access granted');
   return { user, profile, role };
 }
@@ -102,20 +109,24 @@ export async function checkUserRoleSSR() {
 
 export async function protectRouteSSR(config: ProtectedRouteConfig) {
   const { user, profile, role } = await checkUserRoleSSR();
+  
   console.log('SSR Route protection check:', {
     hasUser: !!user,
     hasProfile: !!profile,
     userRole: role,
     allowedRoles: config.allowedRoles
   });
+  
   if (!user) {
     console.log('SSR: No user found, redirecting to login');
     redirect('/login');
   }
+  
   if (!profile) {
     console.log('SSR: No profile found, redirecting to root for profile creation');
     redirect('/');
   }
+  
   if (!role || !config.allowedRoles.includes(role)) {
     console.log('SSR: User role not allowed, redirecting to appropriate dashboard');
     if (role === 'admin') {
@@ -130,6 +141,7 @@ export async function protectRouteSSR(config: ProtectedRouteConfig) {
       redirect('/');
     }
   }
+  
   console.log('SSR: Route access granted');
   return { user, profile, role };
 }
