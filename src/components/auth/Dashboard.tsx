@@ -49,11 +49,18 @@ export default function Dashboard() {
         
         // Small delay to ensure state is updated before redirect
         setTimeout(() => {
-          router.push(dashboardRoute);
+          router.replace(dashboardRoute);
         }, 100);
       }
     }
   }, [profile, router, isRedirecting]);
+
+  // Handle redirect to login if no user
+  useEffect(() => {
+    if (!loading && !profile && !needsProfileCreation && !error) {
+      router.replace('/login');
+    }
+  }, [loading, profile, needsProfileCreation, error, router]);
 
   const fetchUserData = async () => {
     try {
@@ -80,7 +87,7 @@ export default function Dashboard() {
 
       if (!result.user) {
         console.log('No user found, redirecting to login');
-        router.push('/login');
+        router.replace('/login');
         return;
       }
 

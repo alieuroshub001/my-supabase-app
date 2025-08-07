@@ -47,7 +47,7 @@ export async function protectRoute(config: ProtectedRouteConfig) {
 
   // If no profile, redirect to profile setup
   if (!profile) {
-    redirect('/dashboard');
+    redirect('/');
   }
 
   // Check if user has required role
@@ -62,7 +62,7 @@ export async function protectRoute(config: ProtectedRouteConfig) {
     } else if (role === 'client') {
       redirect('/client');
     } else {
-      redirect('/dashboard');
+      redirect('/');
     }
   }
 
@@ -80,7 +80,7 @@ export function getDashboardRoute(role: UserRole): string {
     case 'client':
       return '/client';
     default:
-      return '/dashboard';
+      return '/';
   }
 }
 
