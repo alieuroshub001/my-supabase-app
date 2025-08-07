@@ -1,13 +1,9 @@
 "use client";
 
-import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentUserWithProfile, createUserProfile, debugUserState } from "@/utils/profile/profileUtils";
-import AdminDashboard from "@/components/dashboards/AdminDashboard";
-import HRDashboard from "@/components/dashboards/HRDashboard";
-import TeamDashboard from "@/components/dashboards/TeamDashboard";
-import ClientDashboard from "@/components/dashboards/ClientDashboard";
+import { getDashboardRoute } from "@/utils/auth/routeProtection";
 
 type UserProfile = {
   id: string;
@@ -29,324 +25,124 @@ type UserProfile = {
   updated_at: string;
 };
 
-type UserStats = {
-  totalProjects: number;
-  activeTasks: number;
-  completedTasks: number;
-  totalTimeLogged: number;
-  unreadNotifications: number;
-};
-
 export default function Dashboard() {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [stats, setStats] = useState<UserStats | null>(null);
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [needsProfileCreation, setNeedsProfileCreation] = useState(false);
   const [creatingProfile, setCreatingProfile] = useState(false);
-  const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+    fetchUserData();
+  }, []);
 
-        // Get user and check profile status
-        const result = await getCurrentUserWithProfile();
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        if (result.error && !result.user) {
-          console.log('No authenticated user, redirecting to login');
-          router.push("/login");
-          return;
-        }
+      const result = await getCurrentUserWithProfile();
+      console.log('Dashboard fetchUserData result:', result);
 
-        if (result.needsProfileCreation && result.user) {
-          console.log('Profile missing for user:', result.user.id);
-          
-          // Automatically create profile for first-time users
-          try {
-            console.log('Automatically creating profile for user:', result.user.id);
-            const profileResult = await createUserProfile({
-              id: result.user.id,
-              email: result.user.email!,
-              full_name: result.user.user_metadata?.full_name || result.user.email!.split('@')[0],
-              role: (result.user.user_metadata?.role as 'admin' | 'hr' | 'team' | 'client') || 'team',
-              department: result.user.user_metadata?.department,
-              job_title: result.user.user_metadata?.job_title,
-              phone: result.user.user_metadata?.phone,
-            });
+      if (result.error) {
+        console.error('Error fetching user data:', result.error);
+        setError(typeof result.error === 'string' ? result.error : "An error occurred");
+        return;
+      }
 
-            if (profileResult.success && profileResult.profile) {
-              console.log('Profile created successfully:', profileResult.profile);
-              setProfile(profileResult.profile);
-              setNeedsProfileCreation(false);
-              setError(null);
-              
-              // Fetch stats after profile creation
-              try {
-                await fetchUserStats(result.user.id);
-              } catch (statsError) {
-                console.warn('Stats fetch failed after profile creation:', statsError);
-                // Don't fail profile creation if stats fail
-              }
-              
-              // Create user session for first-time login
-              try {
-                await supabase
-                  .from('user_sessions')
-                  .insert({
-                    user_id: result.user.id,
-                    login_time: new Date().toISOString(),
-                    last_activity: new Date().toISOString(),
-                    is_active: true,
-                    ip_address: 'unknown',
-                    user_agent: 'unknown'
-                  });
-              } catch (sessionError) {
-                console.warn('Session creation failed after profile creation:', sessionError);
-                // Don't fail profile creation if session creation fails
-              }
-              
-              return;
-            } else {
-              console.error('Automatic profile creation failed:', profileResult.error);
-              setNeedsProfileCreation(true);
-              setError("Your profile is missing. This might be due to an incomplete signup process.");
-              return;
-            }
-          } catch (profileError) {
-            console.error('Error in automatic profile creation:', profileError);
+      if (!result.user) {
+        console.log('No user found, redirecting to login');
+        router.push('/login');
+        return;
+      }
+
+      if (result.needsProfileCreation && result.user) {
+        console.log('Profile missing for user:', result.user.id);
+        
+        // Automatically create profile for first-time users
+        try {
+          console.log('Automatically creating profile for user:', result.user.id);
+          const profileResult = await createUserProfile({
+            id: result.user.id,
+            email: result.user.email!,
+            full_name: result.user.user_metadata?.full_name || result.user.email!.split('@')[0],
+            role: (result.user.user_metadata?.role as 'admin' | 'hr' | 'team' | 'client') || 'team',
+            department: result.user.user_metadata?.department,
+            job_title: result.user.user_metadata?.job_title,
+            phone: result.user.user_metadata?.phone,
+          });
+
+          if (profileResult.success && profileResult.profile) {
+            console.log('Profile created successfully:', profileResult.profile);
+            setProfile(profileResult.profile);
+            setNeedsProfileCreation(false);
+            setError(null);
+            return;
+          } else {
+            console.error('Automatic profile creation failed:', profileResult.error);
             setNeedsProfileCreation(true);
             setError("Your profile is missing. This might be due to an incomplete signup process.");
             return;
           }
-        }
-
-        if (!result.profile) {
-          setError("Unable to load your profile. Please try refreshing the page or contact support.");
+        } catch (profileError) {
+          console.error('Error in automatic profile creation:', profileError);
+          setNeedsProfileCreation(true);
+          setError("Your profile is missing. This might be due to an incomplete signup process.");
           return;
         }
-
-        setProfile(result.profile);
-
-        // Fetch user statistics
-        await fetchUserStats(result.user!.id);
-
-        // Create or update user session
-        try {
-          // Check if user has an active session
-          const { data: existingSession, error: sessionCheckError } = await supabase
-            .from('user_sessions')
-            .select('id')
-            .eq('user_id', result.user!.id)
-            .eq('is_active', true)
-            .single();
-
-          if (existingSession) {
-            // Update existing session
-            await supabase
-              .from('user_sessions')
-              .update({ 
-                last_activity: new Date().toISOString(),
-                is_active: true 
-              })
-              .eq('user_id', result.user!.id)
-              .eq('is_active', true);
-          } else {
-            // Create new session for first-time login
-            await supabase
-              .from('user_sessions')
-              .insert({
-                user_id: result.user!.id,
-                login_time: new Date().toISOString(),
-                last_activity: new Date().toISOString(),
-                is_active: true,
-                ip_address: 'unknown', // Could be enhanced with actual IP
-                user_agent: 'unknown' // Could be enhanced with actual user agent
-              });
-          }
-        } catch (sessionError) {
-          console.warn('Session tracking error:', sessionError);
-          // Don't fail the dashboard load for session errors
-        }
-
-      } catch (err) {
-        console.error("Dashboard data fetch error:", err);
-        setError("Failed to load dashboard data. Please try again.");
-      } finally {
-        setLoading(false);
       }
-    };
 
-    const fetchUserStats = async (userId: string) => {
-      try {
-        // Initialize default stats
-        const defaultStats = {
-          totalProjects: 0,
-          activeTasks: 0,
-          completedTasks: 0,
-          totalTimeLogged: 0,
-          unreadNotifications: 0,
-        };
-
-        // Get project count with error handling
-        let totalProjects = 0;
-        try {
-          const { data: projectsData, error: projectsError } = await supabase
-            .from("project_members")
-            .select("project_id")
-            .eq("user_id", userId);
-
-          const { data: ownedProjectsData, error: ownedError } = await supabase
-            .from("projects")
-            .select("id")
-            .eq("owner_id", userId);
-
-          if (!projectsError && !ownedError) {
-            totalProjects = (projectsData?.length || 0) + (ownedProjectsData?.length || 0);
-          }
-        } catch (err) {
-          console.warn("Error fetching project stats:", err);
-        }
-
-        // Get task statistics with error handling
-        let activeTasks = 0, completedTasks = 0;
-        try {
-          const { data: activeTasksData, error: activeError } = await supabase
-            .from("tasks")
-            .select("id")
-            .eq("assignee_id", userId)
-            .in("status", ["todo", "in_progress"]);
-
-          const { data: completedTasksData, error: completedError } = await supabase
-            .from("tasks")
-            .select("id")
-            .eq("assignee_id", userId)
-            .eq("status", "done");
-
-          if (!activeError) activeTasks = activeTasksData?.length || 0;
-          if (!completedError) completedTasks = completedTasksData?.length || 0;
-        } catch (err) {
-          console.warn("Error fetching task stats:", err);
-        }
-
-        // Get total time logged with error handling
-        let totalTimeLogged = 0;
-        try {
-          const { data: timeEntriesData, error: timeError } = await supabase
-            .from("time_entries")
-            .select("duration")
-            .eq("user_id", userId);
-
-          if (!timeError && timeEntriesData) {
-            totalTimeLogged = timeEntriesData.reduce((total, entry) => {
-              return total + (entry.duration || 0);
-            }, 0) || 0;
-            totalTimeLogged = Math.round((totalTimeLogged / 3600) * 100) / 100;
-          }
-        } catch (err) {
-          console.warn("Error fetching time stats:", err);
-        }
-
-        // Get unread notifications with error handling
-        let unreadNotifications = 0;
-        try {
-          const { data: notificationsData, error: notificationError } = await supabase
-            .from("notifications")
-            .select("id")
-            .eq("user_id", userId)
-            .eq("is_read", false);
-
-          if (!notificationError) {
-            unreadNotifications = notificationsData?.length || 0;
-          }
-        } catch (err) {
-          console.warn("Error fetching notification stats:", err);
-        }
-
-        setStats({
-          totalProjects,
-          activeTasks,
-          completedTasks,
-          totalTimeLogged,
-          unreadNotifications,
-        });
-      } catch (err) {
-        console.error("Stats fetch error:", err);
-        // Set default stats if everything fails
-        setStats({
-          totalProjects: 0,
-          activeTasks: 0,
-          completedTasks: 0,
-          totalTimeLogged: 0,
-          unreadNotifications: 0,
-        });
+      if (!result.profile) {
+        console.error('No profile found and could not create one');
+        setError("Unable to load your profile. Please try again.");
+        return;
       }
-    };
 
-    fetchUserData();
-  }, [router, supabase]);
+      console.log('Profile loaded successfully:', result.profile);
+      setProfile(result.profile);
+      setNeedsProfileCreation(false);
+
+    } catch (err) {
+      console.error('Unexpected error in fetchUserData:', err);
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCreateProfile = async () => {
     try {
       setCreatingProfile(true);
       setError(null);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setError("No authenticated user found");
+      const result = await getCurrentUserWithProfile();
+      
+      if (!result.user) {
+        setError("No user found. Please log in again.");
         return;
       }
 
-      // Create profile with basic information
-      const result = await createUserProfile({
-        id: user.id,
-        email: user.email!,
-        full_name: user.user_metadata?.full_name || user.email!.split('@')[0],
-        role: (user.user_metadata?.role as 'admin' | 'hr' | 'team' | 'client') || 'team',
-        department: user.user_metadata?.department,
-        job_title: user.user_metadata?.job_title,
-        phone: user.user_metadata?.phone,
+      const profileResult = await createUserProfile({
+        id: result.user.id,
+        email: result.user.email!,
+        full_name: result.user.user_metadata?.full_name || result.user.email!.split('@')[0],
+        role: (result.user.user_metadata?.role as 'admin' | 'hr' | 'team' | 'client') || 'team',
+        department: result.user.user_metadata?.department,
+        job_title: result.user.user_metadata?.job_title,
+        phone: result.user.user_metadata?.phone,
       });
 
-      if (result.success && result.profile) {
-        setProfile(result.profile);
+      if (profileResult.success && profileResult.profile) {
+        console.log('Profile created successfully:', profileResult.profile);
+        setProfile(profileResult.profile);
         setNeedsProfileCreation(false);
         setError(null);
-        
-        // Fetch stats after profile creation
-        try {
-          await fetchUserStats(user.id);
-        } catch (statsError) {
-          console.warn('Stats fetch failed after profile creation:', statsError);
-          // Don't fail profile creation if stats fail
-        }
-        
-        // Create user session for first-time login
-        try {
-          await supabase
-            .from('user_sessions')
-            .insert({
-              user_id: user.id,
-              login_time: new Date().toISOString(),
-              last_activity: new Date().toISOString(),
-              is_active: true,
-              ip_address: 'unknown',
-              user_agent: 'unknown'
-            });
-        } catch (sessionError) {
-          console.warn('Session creation failed after profile creation:', sessionError);
-          // Don't fail profile creation if session creation fails
-        }
       } else {
-        setError("Failed to create profile. Please try again or contact support.");
-        console.error('Profile creation failed:', result.error);
+        setError(typeof profileResult.error === 'string' ? profileResult.error : "Failed to create profile. Please try again.");
       }
-
     } catch (err) {
-      console.error("Profile creation error:", err);
+      console.error('Error creating profile:', err);
       setError("An error occurred while creating your profile. Please try again.");
     } finally {
       setCreatingProfile(false);
@@ -355,49 +151,17 @@ export default function Dashboard() {
 
   const handleSignOut = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('user_sessions')
-          .update({ 
-            logout_time: new Date().toISOString(),
-            is_active: false 
-          })
-          .eq('user_id', user.id)
-          .eq('is_active', true);
-      }
-
+      const { createClient } = await import("@/utils/supabase/client");
+      const supabase = createClient();
       await supabase.auth.signOut();
-      router.push("/login");
-    } catch (err) {
-      console.error("Sign out error:", err);
-      router.push("/login");
+      router.push('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
     }
   };
 
   const handleDebug = async () => {
     await debugUserState();
-  };
-
-  // Helper functions remain the same
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 'hr':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'client':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'team':
-      default:
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-    }
-  };
-
-  const getStatusBadge = (isActive: boolean) => {
-    return isActive 
-      ? 'bg-green-100 text-green-800 border-green-200' 
-      : 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
   if (loading) {
@@ -482,7 +246,13 @@ export default function Dashboard() {
               onClick={handleDebug}
               className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm"
             >
-              Debug Info
+              Debug Info (Console)
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="w-full border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
+            >
+              Sign Out
             </button>
           </div>
         </div>
@@ -490,301 +260,9 @@ export default function Dashboard() {
     );
   }
 
-  // Render role-specific dashboard
-  if (profile.role === 'admin') {
-    return <AdminDashboard />;
-  } else if (profile.role === 'hr') {
-    return <HRDashboard />;
-  } else if (profile.role === 'team') {
-    return <TeamDashboard />;
-  } else if (profile.role === 'client') {
-    return <ClientDashboard />;
-  }
-
-  // Fallback to default dashboard
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4">
-        {/* Header */}
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Welcome back, {profile.full_name}!
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Here's what's happening with your account today.
-            </p>
-          </div>
-          <div className="flex items-center space-x-4">
-            {stats && stats.unreadNotifications > 0 && (
-              <div className="relative">
-                <button className="p-2 text-gray-600 hover:text-gray-900">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-5 5v-5zM12 1c6.075 0 11 4.925 11 11v1m-11-12C5.925 1 1 5.925 1 12v1" />
-                  </svg>
-                </button>
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {stats.unreadNotifications}
-                </span>
-              </div>
-            )}
-            <button
-              onClick={handleSignOut}
-              className="bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14-7H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Projects</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.totalProjects}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center">
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Active Tasks</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.activeTasks}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Completed</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.completedTasks}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Hours Logged</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.totalTimeLogged}h</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center">
-                <div className="p-2 bg-red-100 rounded-lg">
-                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-3 3 3 3v-6zm0 0v-6a2 2 0 00-2-2H9.236a2 2 0 00-1.789 1.106L3 24h9.764a2 2 0 001.789-1.106l1.895-3.789A2 2 0 0015 17z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Notifications</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.unreadNotifications}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Profile Information */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Profile Card */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Profile Information</h2>
-                <p className="text-sm text-gray-600">Your account details and settings</p>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Full Name</label>
-                    <p className="text-gray-900 font-medium">{profile.full_name}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Email Address</label>
-                    <p className="text-gray-900">{profile.email}</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Role</label>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getRoleBadgeColor(profile.role || 'team')}`}>
-                      {profile.role ? (profile.role as string).charAt(0).toUpperCase() + (profile.role as string).slice(1) : 'Unknown'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Status</label>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(profile.is_active)}`}>
-                      {profile.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-
-                  {profile.department && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Department</label>
-                      <p className="text-gray-900">{profile.department}</p>
-                    </div>
-                  )}
-
-                  {profile.job_title && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Job Title</label>
-                      <p className="text-gray-900">{profile.job_title}</p>
-                    </div>
-                  )}
-
-                  {profile.phone && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Phone Number</label>
-                      <p className="text-gray-900">{profile.phone}</p>
-                    </div>
-                  )}
-
-                  {profile.hire_date && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Hire Date</label>
-                      <p className="text-gray-900">{new Date(profile.hire_date).toLocaleDateString()}</p>
-                    </div>
-                  )}
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Member Since</label>
-                    <p className="text-gray-900">{new Date(profile.created_at).toLocaleDateString()}</p>
-                  </div>
-
-                  {profile.skills && profile.skills.length > 0 && (
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-600 mb-2">Skills</label>
-                      <div className="flex flex-wrap gap-2">
-                        {profile.skills.map((skill, index) => (
-                          <span 
-                            key={index}
-                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800"
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {profile.bio && (
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Bio</label>
-                      <p className="text-gray-900">{profile.bio}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Actions & Recent Activity */}
-          <div className="space-y-6">
-            {/* Quick Actions */}
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
-              </div>
-              <div className="p-6 space-y-3">
-                <button className="w-full text-left px-4 py-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors">
-                  <div className="flex items-center">
-                    <svg className="w-5 h-5 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    <span className="text-blue-700 font-medium">Create New Project</span>
-                  </div>
-                </button>
-                
-                <button className="w-full text-left px-4 py-3 rounded-lg bg-green-50 hover:bg-green-100 transition-colors">
-                  <div className="flex items-center">
-                    <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    <span className="text-green-700 font-medium">Add New Task</span>
-                  </div>
-                </button>
-                
-                <button className="w-full text-left px-4 py-3 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors">
-                  <div className="flex items-center">
-                    <svg className="w-5 h-5 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-purple-700 font-medium">Start Time Tracking</span>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* Account Details */}
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Account Details</h3>
-              </div>
-              <div className="p-6 space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">User ID</span>
-                  <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
-                    {profile.id.slice(0, 8)}...
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Timezone</span>
-                  <span className="text-sm text-gray-900">
-                    {profile.timezone || 'UTC'}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Last Updated</span>
-                  <span className="text-sm text-gray-900">
-                    {new Date(profile.updated_at).toLocaleDateString()}
-                  </span>
-                </div>
-
-                <button className="w-full mt-4 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                  Edit Profile
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-function fetchUserStats(id: string) {
-  throw new Error("Function not implemented.");
+  // Redirect to role-specific dashboard
+  const dashboardRoute = getDashboardRoute(profile.role);
+  router.push(dashboardRoute);
+  return null;
 }
 
