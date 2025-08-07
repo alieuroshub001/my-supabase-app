@@ -19,84 +19,121 @@ export default function LoginForm() {
     setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    console.log('Starting login process for:', email);
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
-    }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (data.user) {
-      try {
-        // Get user profile to determine role-based redirection
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role, full_name, is_active')
-          .eq('id', data.user.id)
-          .single();
+      console.log('Auth response:', { user: !!data.user, error });
 
-        if (profileError) {
-          console.warn('Profile fetch error:', profileError);
-          
-          // Check if it's a "not found" error (user has no profile yet)
-          if (profileError.code === 'PGRST116') {
-            console.log('No profile found for user, redirecting to dashboard for profile creation');
-            router.push("/dashboard");
-            return;
-          }
-          
-          // For other errors, still redirect to dashboard but log the issue
-          console.error('Unexpected profile fetch error:', profileError);
-          router.push("/dashboard");
-          return;
-        }
+      if (error) {
+        console.error('Auth error:', error);
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
 
-        // Check if user account is active
-        if (profile && !profile.is_active) {
-          setError("Your account has been deactivated. Please contact your administrator.");
-          await supabase.auth.signOut();
+      if (data.user) {
+        console.log('User authenticated:', data.user.id);
+        
+        // Wait a moment for session to be established
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Verify session is established
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log('Session check:', { session: !!session, error: sessionError });
+        
+        if (!session) {
+          console.error('No session established after login');
+          setError("Login failed - no session established. Please try again.");
           setLoading(false);
           return;
         }
 
-        // Role-based redirection
-        switch (profile?.role) {
-          case 'admin':
-            router.push("/admin/dashboard");
-            break;
-          case 'hr':
-            router.push("/hr/dashboard");
-            break;
-          case 'client':
-            router.push("/client/dashboard");
-            break;
-          case 'team':
-          default:
-            router.push("/dashboard");
-            break;
-        }
-
-        // Log successful login (optional - don't fail login if this fails)
         try {
-          await supabase.from('user_sessions').insert({
-            user_id: data.user.id,
-            login_time: new Date().toISOString(),
-            ip_address: null, // You can get this from a service if needed
-            user_agent: navigator.userAgent,
-          });
-        } catch (sessionError) {
-          console.warn('Failed to log user session:', sessionError);
-          // Don't fail the login process for session logging errors
-        }
+          // Get user profile to determine role-based redirection
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('role, full_name, is_active')
+            .eq('id', data.user.id)
+            .single();
 
-      } catch (err) {
-        console.error('Login process error:', err);
-        router.push("/dashboard");
+          console.log('Profile fetch result:', { profile: !!profile, error: profileError });
+
+          if (profileError) {
+            console.warn('Profile fetch error:', profileError);
+            
+            // Check if it's a "not found" error (user has no profile yet)
+            if (profileError.code === 'PGRST116') {
+              console.log('No profile found for user, redirecting to root for profile creation');
+              router.push("/");
+              return;
+            }
+            
+            // For other errors, still redirect to root but log the issue
+            console.error('Unexpected profile fetch error:', profileError);
+            router.push("/");
+            return;
+          }
+
+          // Check if user account is active
+          if (profile && !profile.is_active) {
+            setError("Your account has been deactivated. Please contact your administrator.");
+            await supabase.auth.signOut();
+            setLoading(false);
+            return;
+          }
+
+          console.log('Profile found, role:', profile?.role);
+
+          // Role-based redirection
+          let redirectPath = "/";
+          switch (profile?.role) {
+            case 'admin':
+              redirectPath = "/admin/dashboard";
+              break;
+            case 'hr':
+              redirectPath = "/hr/dashboard";
+              break;
+            case 'client':
+              redirectPath = "/client/dashboard";
+              break;
+            case 'team':
+            default:
+              redirectPath = "/team/dashboard";
+              break;
+          }
+
+          console.log('Redirecting to:', redirectPath);
+          router.push(redirectPath);
+
+          // Log successful login (optional - don't fail login if this fails)
+          try {
+            await supabase.from('user_sessions').insert({
+              user_id: data.user.id,
+              login_time: new Date().toISOString(),
+              ip_address: null, // You can get this from a service if needed
+              user_agent: navigator.userAgent,
+            });
+          } catch (sessionError) {
+            console.warn('Failed to log user session:', sessionError);
+            // Don't fail the login process for session logging errors
+          }
+
+        } catch (err) {
+          console.error('Login process error:', err);
+          router.push("/");
+        }
+      } else {
+        console.error('No user data in auth response');
+        setError("Login failed - no user data received. Please try again.");
       }
+    } catch (err) {
+      console.error('Unexpected error during login:', err);
+      setError("An unexpected error occurred. Please try again.");
     }
     
     setLoading(false);

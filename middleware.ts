@@ -10,12 +10,19 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
+  console.log('Middleware check:', {
+    pathname: request.nextUrl.pathname,
+    hasSession: !!session,
+    userAgent: request.headers.get('user-agent')?.substring(0, 50)
+  });
+
   // Protect dashboard routes
   if (
     !session &&
     (request.nextUrl.pathname.startsWith("/dashboard") ||
       request.nextUrl.pathname.startsWith("/profile"))
   ) {
+    console.log('No session, redirecting to login');
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -26,7 +33,8 @@ export async function middleware(request: NextRequest) {
       request.nextUrl.pathname.startsWith("/signup") ||
       request.nextUrl.pathname.startsWith("/otp"))
   ) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    console.log('Session exists, redirecting away from auth pages');
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return response;
