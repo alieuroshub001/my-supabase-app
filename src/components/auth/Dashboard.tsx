@@ -666,3 +666,7 @@ export default function Dashboard() {
 }
 
 
+function fetchUserStats(id: string) {
+  throw new Error("Function not implemented.");
+}
+
