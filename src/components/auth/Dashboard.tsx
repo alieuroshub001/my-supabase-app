@@ -38,6 +38,23 @@ export default function Dashboard() {
     fetchUserData();
   }, []);
 
+  // Handle redirect to role-specific dashboard
+  useEffect(() => {
+    if (profile && !isRedirecting) {
+      const dashboardRoute = getDashboardRoute(profile.role);
+      
+      // Check if we're already on the correct route
+      if (window.location.pathname !== dashboardRoute) {
+        setIsRedirecting(true);
+        
+        // Small delay to ensure state is updated before redirect
+        setTimeout(() => {
+          router.push(dashboardRoute);
+        }, 100);
+      }
+    }
+  }, [profile, router, isRedirecting]);
+
   const fetchUserData = async () => {
     try {
       setLoading(true);
@@ -240,19 +257,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  // Redirect to role-specific dashboard using useEffect
-  useEffect(() => {
-    if (profile && !isRedirecting) {
-      setIsRedirecting(true);
-      const dashboardRoute = getDashboardRoute(profile.role);
-      
-      // Small delay to ensure state is updated before redirect
-      setTimeout(() => {
-        router.push(dashboardRoute);
-      }, 100);
-    }
-  }, [profile, router, isRedirecting]);
 
   // Show loading while redirecting
   return (
