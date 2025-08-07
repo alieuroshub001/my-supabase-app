@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [needsProfileCreation, setNeedsProfileCreation] = useState(false);
   const [creatingProfile, setCreatingProfile] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -240,9 +241,27 @@ export default function Dashboard() {
     );
   }
 
-  // Redirect to role-specific dashboard
-  const dashboardRoute = getDashboardRoute(profile.role);
-  router.push(dashboardRoute);
-  return null;
+  // Redirect to role-specific dashboard using useEffect
+  useEffect(() => {
+    if (profile && !isRedirecting) {
+      setIsRedirecting(true);
+      const dashboardRoute = getDashboardRoute(profile.role);
+      
+      // Small delay to ensure state is updated before redirect
+      setTimeout(() => {
+        router.push(dashboardRoute);
+      }, 100);
+    }
+  }, [profile, router, isRedirecting]);
+
+  // Show loading while redirecting
+  return (
+    <div className="flex justify-center items-center h-screen bg-gray-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p className="text-gray-600">Redirecting to your {profile?.role} dashboard...</p>
+      </div>
+    </div>
+  );
 }
 
