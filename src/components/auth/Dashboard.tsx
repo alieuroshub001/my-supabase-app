@@ -55,17 +55,21 @@ export default function Dashboard() {
     }
   }, [profile, router, isRedirecting]);
 
-  // Handle redirect to login if no user
+  // Handle redirect to login if no user (only after loading is complete)
   useEffect(() => {
-    if (!loading && !profile && !needsProfileCreation && !error) {
+    if (!loading && !profile && !needsProfileCreation && !error && !isRedirecting) {
+      // Only redirect if we're not already redirecting and have completed loading
       router.replace('/login');
     }
-  }, [loading, profile, needsProfileCreation, error, router]);
+  }, [loading, profile, needsProfileCreation, error, router, isRedirecting]);
 
   const fetchUserData = async () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Add a small delay to ensure session is established
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const result = await getCurrentUserWithProfile();
       console.log('Dashboard fetchUserData result:', result);
@@ -77,6 +81,8 @@ export default function Dashboard() {
           email: result.user.email,
           metadata: result.user.user_metadata
         });
+      } else {
+        console.log('No user found in result');
       }
 
       if (result.error && !result.needsProfileCreation) {
@@ -166,6 +172,15 @@ export default function Dashboard() {
   };
 
   const handleDebug = async () => {
+    console.log('=== Dashboard Debug ===');
+    console.log('Current state:', {
+      loading,
+      error,
+      profile: !!profile,
+      needsProfileCreation,
+      creatingProfile,
+      isRedirecting
+    });
     await debugUserState();
   };
 

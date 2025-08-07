@@ -111,10 +111,19 @@ export const getCurrentUserWithProfile = async () => {
   const supabase = createClient();
 
   try {
+    console.log('getCurrentUserWithProfile: Starting...');
+    
+    // Get current session first
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    console.log('getCurrentUserWithProfile: Session result:', { session: !!session, error: sessionError });
+    
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
+    console.log('getCurrentUserWithProfile: Auth result:', { user: !!user, error: userError });
+    
     if (userError || !user) {
+      console.log('getCurrentUserWithProfile: No user found, returning null');
       return {
         user: null,
         profile: null,
