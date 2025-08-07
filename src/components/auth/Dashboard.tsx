@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentUserWithProfile, createUserProfile, debugUserState } from "@/utils/profile/profileUtils";
 import { getDashboardRoute } from "@/utils/auth/routeProtection";
-import { createClient } from "@/utils/supabase/client";
 
 type UserProfile = {
   id: string;
@@ -29,50 +28,26 @@ type UserProfile = {
 export default function Dashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [hydrated, setHydrated] = useState(false); // <-- hydration state
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [needsProfileCreation, setNeedsProfileCreation] = useState(false);
   const [creatingProfile, setCreatingProfile] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
-  // Hydrate session on mount and listen for auth state changes
   useEffect(() => {
-    const supabase = createClient();
-    let mounted = true;
-
-    // Wait for Supabase to initialize session
-    supabase.auth.getSession().then(() => {
-      if (mounted) setHydrated(true);
-    });
-
-    // Listen for auth state changes (login, logout, refresh)
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, _session) => {
-      // Always re-hydrate and re-fetch user/profile on auth change
-      setHydrated(false);
-      setTimeout(() => setHydrated(true), 100); // Give time for cookie to be set
-    });
-
-    return () => {
-      mounted = false;
-      listener?.subscription.unsubscribe();
-    };
+    fetchUserData();
   }, []);
-
-  // Fetch user/profile only after hydration
-  useEffect(() => {
-    if (hydrated) {
-      fetchUserData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated]);
 
   // Handle redirect to role-specific dashboard
   useEffect(() => {
     if (profile && !isRedirecting) {
       const dashboardRoute = getDashboardRoute(profile.role);
+      
+      // Check if we're already on the correct route
       if (window.location.pathname !== dashboardRoute) {
         setIsRedirecting(true);
+        
+        // Small delay to ensure state is updated before redirect
         setTimeout(() => {
           router.replace(dashboardRoute);
         }, 100);
@@ -82,18 +57,25 @@ export default function Dashboard() {
 
   // Handle redirect to login if no user (only after loading is complete)
   useEffect(() => {
-    if (hydrated && !loading && !profile && !needsProfileCreation && !error && !isRedirecting) {
+    if (!loading && !profile && !needsProfileCreation && !error && !isRedirecting) {
+      // Only redirect if we're not already redirecting and have completed loading
       router.replace('/login');
     }
-  }, [hydrated, loading, profile, needsProfileCreation, error, router, isRedirecting]);
+  }, [loading, profile, needsProfileCreation, error, router, isRedirecting]);
 
   const fetchUserData = async () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Add a small delay to ensure session is established
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       const result = await getCurrentUserWithProfile();
+      console.log('Dashboard fetchUserData result:', result);
+      
+      // Debug: Check if user exists in auth.users
       if (result.user) {
-        // Debug
         console.log('User found:', {
           id: result.user.id,
           email: result.user.email,
@@ -102,25 +84,38 @@ export default function Dashboard() {
       } else {
         console.log('No user found in result');
       }
+
       if (result.error && !result.needsProfileCreation) {
+        console.error('Error fetching user data:', result.error);
         setError(typeof result.error === 'string' ? result.error : "An error occurred");
         return;
       }
+
       if (!result.user) {
+        console.log('No user found, redirecting to login');
+        router.replace('/login');
         return;
       }
+
       if (result.needsProfileCreation && result.user) {
+        console.log('Profile creation needed for user:', result.user.id);
         setNeedsProfileCreation(true);
         setError("Your profile is missing. This might be due to an incomplete signup process.");
         return;
       }
+
       if (!result.profile) {
+        console.error('No profile found and could not create one');
         setError("Unable to load your profile. Please try again.");
         return;
       }
+
+      console.log('Profile loaded successfully:', result.profile);
       setProfile(result.profile);
       setNeedsProfileCreation(false);
+
     } catch (err) {
+      console.error('Unexpected error in fetchUserData:', err);
       setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
@@ -131,11 +126,14 @@ export default function Dashboard() {
     try {
       setCreatingProfile(true);
       setError(null);
+
       const result = await getCurrentUserWithProfile();
+      
       if (!result.user) {
         setError("No user found. Please log in again.");
         return;
       }
+
       const profileResult = await createUserProfile({
         id: result.user.id,
         email: result.user.email!,
@@ -145,7 +143,9 @@ export default function Dashboard() {
         job_title: result.user.user_metadata?.job_title,
         phone: result.user.user_metadata?.phone,
       });
+
       if (profileResult.success && profileResult.profile) {
+        console.log('Profile created successfully:', profileResult.profile);
         setProfile(profileResult.profile);
         setNeedsProfileCreation(false);
         setError(null);
@@ -153,6 +153,7 @@ export default function Dashboard() {
         setError(typeof profileResult.error === 'string' ? profileResult.error : "Failed to create profile. Please try again.");
       }
     } catch (err) {
+      console.error('Error creating profile:', err);
       setError("An error occurred while creating your profile. Please try again.");
     } finally {
       setCreatingProfile(false);
@@ -161,9 +162,10 @@ export default function Dashboard() {
 
   const handleSignOut = async () => {
     try {
+      const { createClient } = await import("@/utils/supabase/client");
       const supabase = createClient();
       await supabase.auth.signOut();
-      router.replace('/login');
+      router.push('/login');
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -173,7 +175,6 @@ export default function Dashboard() {
     console.log('=== Dashboard Debug ===');
     console.log('Current state:', {
       loading,
-      hydrated,
       error,
       profile: !!profile,
       needsProfileCreation,
@@ -182,17 +183,6 @@ export default function Dashboard() {
     });
     await debugUserState();
   };
-
-  if (!hydrated) {
-    return (
-      <div className="flex justify-center items-center h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Initializing session...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (loading) {
     return (
@@ -219,11 +209,13 @@ export default function Dashboard() {
             Your account exists but your profile wasn't created properly during signup. 
             We'll create it now with your basic information.
           </p>
+          
           {error && (
             <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
               {error}
             </div>
           )}
+
           <div className="space-y-3">
             <button
               onClick={handleCreateProfile}
@@ -232,12 +224,14 @@ export default function Dashboard() {
             >
               {creatingProfile ? "Creating Profile..." : "Create My Profile"}
             </button>
+            
             <button
               onClick={handleDebug}
               className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm"
             >
               Debug Info (Console)
             </button>
+            
             <button
               onClick={handleSignOut}
               className="w-full border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
