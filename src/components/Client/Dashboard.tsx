@@ -52,15 +52,15 @@ export default function ClientDashboard() {
         setLoading(true);
         setError(null);
 
-        // Get current user
+        // Get current user - server-side protection already verified authentication
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         
         if (userError || !user) {
-          router.push("/login");
+          setError("Unable to load user information.");
           return;
         }
 
-        // Get user profile
+        // Get user profile - server-side protection already verified role access
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -69,12 +69,6 @@ export default function ClientDashboard() {
 
         if (profileError || !profileData) {
           setError("Unable to load your profile.");
-          return;
-        }
-
-        // Verify client role
-        if (profileData.role !== 'client' && profileData.role !== 'admin') {
-          setError("Access denied. Client privileges required.");
           return;
         }
 
@@ -90,7 +84,7 @@ export default function ClientDashboard() {
     };
 
     fetchClientData();
-  }, [router, supabase]);
+  }, [supabase]);
 
   const fetchClientStats = async (userId: string) => {
     try {

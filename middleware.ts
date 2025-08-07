@@ -16,11 +16,15 @@ export async function middleware(request: NextRequest) {
     userAgent: request.headers.get('user-agent')?.substring(0, 50)
   });
 
-  // Protect dashboard routes
+  // Protect all role-based dashboard routes and profile routes
   if (
     !session &&
     (request.nextUrl.pathname.startsWith("/dashboard") ||
-      request.nextUrl.pathname.startsWith("/profile"))
+      request.nextUrl.pathname.startsWith("/profile") ||
+      request.nextUrl.pathname.startsWith("/admin") ||
+      request.nextUrl.pathname.startsWith("/hr") ||
+      request.nextUrl.pathname.startsWith("/team") ||
+      request.nextUrl.pathname.startsWith("/client"))
   ) {
     console.log('No session, redirecting to login');
     return NextResponse.redirect(new URL("/login", request.url));
