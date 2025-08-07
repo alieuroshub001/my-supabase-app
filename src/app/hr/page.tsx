@@ -1,9 +1,9 @@
-import { protectRoute } from "@/utils/auth/routeProtection";
+import { protectRouteSSR } from "@/utils/auth/routeProtection.server";
 import HRDashboard from "@/components/HR/Dashboard";
 
 export default async function HRPage() {
   // Protect the route - only HR and admin users can access
-  await protectRoute({ allowedRoles: ['hr', 'admin'] });
+  await protectRouteSSR({ allowedRoles: ['hr', 'admin'] });
   
   return <HRDashboard />;
 }

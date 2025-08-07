@@ -1,4 +1,4 @@
-import { protectRoute } from "@/utils/auth/routeProtection";
+import { protectRouteSSR } from "@/utils/auth/routeProtection.server";
 import Link from "next/link";
 
 export default async function HRLayout({
@@ -7,7 +7,7 @@ export default async function HRLayout({
   children: React.ReactNode;
 }) {
   // Protect the layout - only HR and admin users can access
-  await protectRoute({ allowedRoles: ['hr', 'admin'] });
+  await protectRouteSSR({ allowedRoles: ['hr', 'admin'] });
 
   return (
     <div className="min-h-screen bg-gray-50">

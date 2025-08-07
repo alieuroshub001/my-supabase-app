@@ -1,9 +1,10 @@
-import { protectRouteSSR } from "@/utils/auth/routeProtection";
+//src/app/client/dashboard/page.tsx
+import { protectRoute } from "@/utils/auth/routeProtection.client";
 import ClientDashboard from "@/components/Client/Dashboard";
 
-export default async function ClientPage() {
+export default async function ClientDashboardPage() {
   // Protect the route - only client and admin users can access
-  await protectRouteSSR({ allowedRoles: ['client', 'admin'] });
-  
+  await protectRoute({ allowedRoles: ['client', 'admin'] });
+
   return <ClientDashboard />;
 }
