@@ -40,45 +40,56 @@ export async function checkUserRole(): Promise<{ user: any; profile: any; role: 
 export async function protectRoute(config: ProtectedRouteConfig) {
   const { user, profile, role } = await checkUserRole();
   
+  console.log('Route protection check:', {
+    hasUser: !!user,
+    hasProfile: !!profile,
+    userRole: role,
+    allowedRoles: config.allowedRoles
+  });
+  
   // If no user, redirect to login
   if (!user) {
+    console.log('No user found, redirecting to login');
     redirect('/login');
   }
 
   // If no profile, redirect to profile setup
   if (!profile) {
+    console.log('No profile found, redirecting to root for profile creation');
     redirect('/');
   }
 
   // Check if user has required role
   if (!role || !config.allowedRoles.includes(role)) {
+    console.log('User role not allowed, redirecting to appropriate dashboard');
     // Redirect to appropriate dashboard based on user's role
     if (role === 'admin') {
-      redirect('/admin');
+      redirect('/admin/dashboard');
     } else if (role === 'hr') {
-      redirect('/hr');
+      redirect('/hr/dashboard');
     } else if (role === 'team') {
-      redirect('/team');
+      redirect('/team/dashboard');
     } else if (role === 'client') {
-      redirect('/client');
+      redirect('/client/dashboard');
     } else {
       redirect('/');
     }
   }
 
+  console.log('Route access granted');
   return { user, profile, role };
 }
 
 export function getDashboardRoute(role: UserRole): string {
   switch (role) {
     case 'admin':
-      return '/admin';
+      return '/admin/dashboard';
     case 'hr':
-      return '/hr';
+      return '/hr/dashboard';
     case 'team':
-      return '/team';
+      return '/team/dashboard';
     case 'client':
-      return '/client';
+      return '/client/dashboard';
     default:
       return '/';
   }

@@ -43,14 +43,24 @@ export default function Dashboard() {
     if (profile && !isRedirecting) {
       const dashboardRoute = getDashboardRoute(profile.role);
       
+      console.log('Dashboard redirect check:', {
+        currentPath: window.location.pathname,
+        targetRoute: dashboardRoute,
+        profileRole: profile.role
+      });
+      
       // Check if we're already on the correct route
       if (window.location.pathname !== dashboardRoute) {
         setIsRedirecting(true);
         
+        console.log('Redirecting to:', dashboardRoute);
+        
         // Small delay to ensure state is updated before redirect
         setTimeout(() => {
           router.replace(dashboardRoute);
-        }, 100);
+        }, 500);
+      } else {
+        console.log('Already on correct route');
       }
     }
   }, [profile, router, isRedirecting]);
