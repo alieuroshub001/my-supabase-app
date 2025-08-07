@@ -1,5 +1,5 @@
 import { protectRoute } from "@/utils/auth/routeProtection.ts";
-import UserManagement from "@/components/Admin/UserManagement";
+import UserManagementClientWrapper from "./UserManagementClientWrapper";
 
 export default async function AdminUsersPage() {
   // Protect the route - only admin users can access
@@ -11,8 +11,7 @@ export default async function AdminUsersPage() {
         <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
         <p className="text-gray-600 mt-1">Manage system users and their roles</p>
       </div>
-      
-      <UserManagement />
+      <UserManagementClientWrapper />
     </div>
   );
 }
