@@ -40,8 +40,17 @@ export default function LoginForm() {
           .single();
 
         if (profileError) {
-          console.error('Profile fetch error:', profileError);
-          // Still redirect to dashboard if profile fetch fails
+          console.warn('Profile fetch error:', profileError);
+          
+          // Check if it's a "not found" error (user has no profile yet)
+          if (profileError.code === 'PGRST116') {
+            console.log('No profile found for user, redirecting to dashboard for profile creation');
+            router.push("/dashboard");
+            return;
+          }
+          
+          // For other errors, still redirect to dashboard but log the issue
+          console.error('Unexpected profile fetch error:', profileError);
           router.push("/dashboard");
           return;
         }
@@ -71,13 +80,18 @@ export default function LoginForm() {
             break;
         }
 
-        // Log successful login
-        await supabase.from('user_sessions').insert({
-          user_id: data.user.id,
-          login_time: new Date().toISOString(),
-          ip_address: null, // You can get this from a service if needed
-          user_agent: navigator.userAgent,
-        });
+        // Log successful login (optional - don't fail login if this fails)
+        try {
+          await supabase.from('user_sessions').insert({
+            user_id: data.user.id,
+            login_time: new Date().toISOString(),
+            ip_address: null, // You can get this from a service if needed
+            user_agent: navigator.userAgent,
+          });
+        } catch (sessionError) {
+          console.warn('Failed to log user session:', sessionError);
+          // Don't fail the login process for session logging errors
+        }
 
       } catch (err) {
         console.error('Login process error:', err);
