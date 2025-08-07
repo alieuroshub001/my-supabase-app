@@ -44,8 +44,17 @@ export default function Dashboard() {
 
       const result = await getCurrentUserWithProfile();
       console.log('Dashboard fetchUserData result:', result);
+      
+      // Debug: Check if user exists in auth.users
+      if (result.user) {
+        console.log('User found:', {
+          id: result.user.id,
+          email: result.user.email,
+          metadata: result.user.user_metadata
+        });
+      }
 
-      if (result.error) {
+      if (result.error && !result.needsProfileCreation) {
         console.error('Error fetching user data:', result.error);
         setError(typeof result.error === 'string' ? result.error : "An error occurred");
         return;
@@ -58,39 +67,10 @@ export default function Dashboard() {
       }
 
       if (result.needsProfileCreation && result.user) {
-        console.log('Profile missing for user:', result.user.id);
-        
-        // Automatically create profile for first-time users
-        try {
-          console.log('Automatically creating profile for user:', result.user.id);
-          const profileResult = await createUserProfile({
-            id: result.user.id,
-            email: result.user.email!,
-            full_name: result.user.user_metadata?.full_name || result.user.email!.split('@')[0],
-            role: (result.user.user_metadata?.role as 'admin' | 'hr' | 'team' | 'client') || 'team',
-            department: result.user.user_metadata?.department,
-            job_title: result.user.user_metadata?.job_title,
-            phone: result.user.user_metadata?.phone,
-          });
-
-          if (profileResult.success && profileResult.profile) {
-            console.log('Profile created successfully:', profileResult.profile);
-            setProfile(profileResult.profile);
-            setNeedsProfileCreation(false);
-            setError(null);
-            return;
-          } else {
-            console.error('Automatic profile creation failed:', profileResult.error);
-            setNeedsProfileCreation(true);
-            setError("Your profile is missing. This might be due to an incomplete signup process.");
-            return;
-          }
-        } catch (profileError) {
-          console.error('Error in automatic profile creation:', profileError);
-          setNeedsProfileCreation(true);
-          setError("Your profile is missing. This might be due to an incomplete signup process.");
-          return;
-        }
+        console.log('Profile creation needed for user:', result.user.id);
+        setNeedsProfileCreation(true);
+        setError("Your profile is missing. This might be due to an incomplete signup process.");
+        return;
       }
 
       if (!result.profile) {
