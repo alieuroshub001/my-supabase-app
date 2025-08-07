@@ -4,6 +4,10 @@ import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentUserWithProfile, createUserProfile, debugUserState } from "@/utils/profile/profileUtils";
+import AdminDashboard from "@/components/dashboards/AdminDashboard";
+import HRDashboard from "@/components/dashboards/HRDashboard";
+import TeamDashboard from "@/components/dashboards/TeamDashboard";
+import ClientDashboard from "@/components/dashboards/ClientDashboard";
 
 type UserProfile = {
   id: string;
@@ -486,7 +490,18 @@ export default function Dashboard() {
     );
   }
 
-  // Rest of the dashboard UI remains the same as your original code
+  // Render role-specific dashboard
+  if (profile.role === 'admin') {
+    return <AdminDashboard />;
+  } else if (profile.role === 'hr') {
+    return <HRDashboard />;
+  } else if (profile.role === 'team') {
+    return <TeamDashboard />;
+  } else if (profile.role === 'client') {
+    return <ClientDashboard />;
+  }
+
+  // Fallback to default dashboard
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
