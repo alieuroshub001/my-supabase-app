@@ -49,48 +49,74 @@ export default function ClientDashboard() {
   useEffect(() => {
     const fetchClientData = async () => {
       try {
+        console.log('🔍 Client Dashboard: Starting fetchClientData');
         setLoading(true);
         setError(null);
 
-        // Get current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        // Add a small delay to ensure session is fully established
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Get current user with session check
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log('🔍 Client Dashboard: Session check result', { 
+          hasSession: !!session, 
+          hasUser: !!session?.user, 
+          error: sessionError 
+        });
         
-        if (userError || !user) {
-          router.push("/login");
+        if (sessionError || !session || !session.user) {
+          console.log("❌ Client Dashboard: No valid session found");
+          setError("Session expired. Please log in again.");
+          // Don't redirect here, let the middleware or route protection handle it
           return;
         }
 
+        console.log('✅ Client Dashboard: Valid session found for user', session.user.id);
+        const user = session.user;
+
         // Get user profile
+        console.log('🔍 Client Dashboard: Fetching profile for user', user.id);
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .single();
 
+        console.log('🔍 Client Dashboard: Profile fetch result', { 
+          hasProfile: !!profileData, 
+          error: profileError,
+          errorCode: profileError?.code 
+        });
+
         if (profileError || !profileData) {
           // If no profile exists, redirect to root for profile creation
           if (profileError?.code === 'PGRST116') {
-            console.log('No profile found for client user, redirecting to root for profile creation');
+            console.log('⚠️ Client Dashboard: No profile found, redirecting to root for profile creation');
             router.push("/");
             return;
           }
+          console.log('❌ Client Dashboard: Profile fetch error', profileError);
           setError("Unable to load your profile.");
           return;
         }
 
         // Verify client role
+        console.log('🔍 Client Dashboard: Profile role check', { role: profileData.role });
         if (profileData.role !== 'client' && profileData.role !== 'admin') {
+          console.log('❌ Client Dashboard: Access denied, wrong role', profileData.role);
           setError("Access denied. Client privileges required.");
           return;
         }
 
+        console.log('✅ Client Dashboard: Role verified, setting profile');
         setProfile(profileData);
         await fetchClientStats(user.id);
 
       } catch (err) {
-        console.error("Client dashboard error:", err);
+        console.error("❌ Client dashboard error:", err);
         setError("Failed to load client dashboard.");
       } finally {
+        console.log('🔍 Client Dashboard: Setting loading to false');
         setLoading(false);
       }
     };

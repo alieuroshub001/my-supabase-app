@@ -10,9 +10,10 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  console.log('Middleware check:', {
+  console.log('🔍 Middleware check:', {
     pathname: request.nextUrl.pathname,
     hasSession: !!session,
+    userId: session?.user?.id,
     userAgent: request.headers.get('user-agent')?.substring(0, 50)
   });
 
@@ -26,7 +27,7 @@ export async function middleware(request: NextRequest) {
       request.nextUrl.pathname.startsWith("/team/dashboard") ||
       request.nextUrl.pathname.startsWith("/client/dashboard"))
   ) {
-    console.log('No session, redirecting to login');
+    console.log('❌ Middleware: No session, redirecting to login');
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -37,7 +38,7 @@ export async function middleware(request: NextRequest) {
       request.nextUrl.pathname.startsWith("/signup") ||
       request.nextUrl.pathname.startsWith("/otp"))
   ) {
-    console.log('Session exists, redirecting away from auth pages');
+    console.log('✅ Middleware: Session exists, redirecting away from auth pages');
     return NextResponse.redirect(new URL("/", request.url));
   }
 
