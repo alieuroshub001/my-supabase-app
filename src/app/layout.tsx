@@ -1,4 +1,3 @@
-import Navbar from "@/components/Navbar";
 import { createClient } from "@/utils/supabase/server";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
@@ -30,7 +29,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        {user && <Navbar />}
+        {/* Navbar removed as requested */}
         <main className="min-h-screen">{children}</main>
       </body>
     </html>
