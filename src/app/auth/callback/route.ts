@@ -1,7 +1,6 @@
 //app/auth/callback/route.ts
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { getDashboardRoute } from "@/utils/auth/routeProtection";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -19,23 +18,6 @@ export async function GET(request: Request) {
     
     if (data.user) {
       console.log('User verified successfully:', data.user.id);
-      
-              // Get user profile to determine dashboard route
-        try {
-          const supabaseClient = await supabase;
-          const { data: profile } = await supabaseClient
-            .from('profiles')
-            .select('role')
-            .eq('id', data.user.id)
-            .single();
-        
-        if (profile?.role) {
-          const dashboardRoute = getDashboardRoute(profile.role);
-          return NextResponse.redirect(requestUrl.origin + dashboardRoute);
-        }
-      } catch (profileError) {
-        console.error('Error getting user profile:', profileError);
-      }
     }
   }
 
