@@ -55,6 +55,22 @@ export const createUserProfile = async (userData: {
   const supabase = createClient();
 
   try {
+    // First check if profile already exists (in case of race conditions)
+    const { data: existingProfile, error: checkError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userData.id)
+      .single();
+
+    if (existingProfile && !checkError) {
+      console.log('Profile already exists for user:', userData.id);
+      return {
+        success: true,
+        profile: existingProfile,
+        error: null
+      };
+    }
+
     // Create profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')

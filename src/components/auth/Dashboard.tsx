@@ -40,6 +40,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [needsProfileCreation, setNeedsProfileCreation] = useState(false);
   const [creatingProfile, setCreatingProfile] = useState(false);
+  const [autoCreatingProfile, setAutoCreatingProfile] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -60,9 +61,70 @@ export default function Dashboard() {
 
         if (result.needsProfileCreation && result.user) {
           console.log('Profile missing for user:', result.user.id);
-          setNeedsProfileCreation(true);
-          setError("Your profile is missing. This might be due to an incomplete signup process.");
-          return;
+          setAutoCreatingProfile(true);
+          
+          // Wait a moment for database trigger to complete, then check again
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Check if profile was created by trigger
+          const retryResult = await getCurrentUserWithProfile();
+          if (retryResult.profile && !retryResult.needsProfileCreation) {
+            console.log('Profile found after retry, created by database trigger');
+            setProfile(retryResult.profile);
+            setNeedsProfileCreation(false);
+            setAutoCreatingProfile(false);
+            setError(null);
+            
+            // Fetch stats after profile creation
+            try {
+              await fetchUserStats(result.user.id);
+            } catch (statsError) {
+              console.warn('Stats fetch failed after profile creation:', statsError);
+            }
+            return;
+          }
+          
+          // Automatically create profile for first-time users
+          try {
+            const profileResult = await createUserProfile({
+              id: result.user.id,
+              email: result.user.email!,
+              full_name: result.user.user_metadata?.full_name || result.user.email!.split('@')[0],
+              role: (result.user.user_metadata?.role as 'admin' | 'hr' | 'team' | 'client') || 'team',
+              department: result.user.user_metadata?.department,
+              job_title: result.user.user_metadata?.job_title,
+              phone: result.user.user_metadata?.phone,
+            });
+
+            if (profileResult.success && profileResult.profile) {
+              console.log('Profile created successfully for first-time user:', result.user.id);
+              setProfile(profileResult.profile);
+              setNeedsProfileCreation(false);
+              setAutoCreatingProfile(false);
+              setError(null);
+              
+              // Fetch stats after profile creation
+              try {
+                await fetchUserStats(result.user.id);
+              } catch (statsError) {
+                console.warn('Stats fetch failed after profile creation:', statsError);
+                // Don't fail profile creation if stats fail
+              }
+              return;
+            } else {
+              console.error('Failed to create profile automatically:', profileResult.error);
+              setNeedsProfileCreation(true);
+              setAutoCreatingProfile(false);
+              setError("We're setting up your profile. Please wait a moment and try again.");
+              return;
+            }
+          } catch (err) {
+            console.error('Error creating profile automatically:', err);
+            setNeedsProfileCreation(true);
+            setAutoCreatingProfile(false);
+            setError("We're setting up your profile. Please wait a moment and try again.");
+            return;
+          }
         }
 
         if (!result.profile) {
@@ -202,6 +264,7 @@ export default function Dashboard() {
   const handleCreateProfile = async () => {
     try {
       setCreatingProfile(true);
+      setAutoCreatingProfile(false);
       setError(null);
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -293,12 +356,14 @@ export default function Dashboard() {
       : 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  if (loading) {
+  if (loading || autoCreatingProfile) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your dashboard...</p>
+          <p className="text-gray-600">
+            {autoCreatingProfile ? "Setting up your profile..." : "Loading your dashboard..."}
+          </p>
         </div>
       </div>
     );
@@ -313,10 +378,10 @@ export default function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Profile Setup Required</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Welcome! Setting Up Your Profile</h2>
           <p className="text-gray-600 mb-6">
-            Your account exists but your profile wasn't created properly during signup. 
-            We'll create it now with your basic information.
+            We're setting up your profile with your account information. 
+            This should only take a moment.
           </p>
           
           {error && (
@@ -331,7 +396,7 @@ export default function Dashboard() {
               disabled={creatingProfile}
               className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
-              {creatingProfile ? "Creating Profile..." : "Create My Profile"}
+              {creatingProfile ? "Setting Up Profile..." : "Complete Setup"}
             </button>
             
             <button
