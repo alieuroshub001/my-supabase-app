@@ -57,7 +57,7 @@ export default function ClientDashboard() {
         // Add a small delay to ensure session is fully established
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Get current user with session check
+        // Get current user with session check for better reliability
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         console.log('🔍 Client Dashboard: Session check result', { 
           hasSession: !!session, 
@@ -101,7 +101,7 @@ export default function ClientDashboard() {
           return;
         }
 
-        // Verify client role
+        // Verify client role (server-side protection should handle this, but double-check)
         console.log('🔍 Client Dashboard: Profile role check', { role: profileData.role });
         if (profileData.role !== 'client' && profileData.role !== 'admin') {
           console.log('❌ Client Dashboard: Access denied, wrong role', profileData.role);
@@ -438,7 +438,7 @@ export default function ClientDashboard() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-5 5v-5zM4 19h6l-6 6v-6zM4 5h6l-6 6V5zM15 7h5l-5 5V7z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3a4 4 0 118 0v4M3 21h18l-2-9H5l-2 9z" />
                     </svg>
                     <span className="font-medium">Project Calendar</span>
                   </div>
@@ -452,7 +452,7 @@ export default function ClientDashboard() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <svg className="w-5 h-5 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-5 5v-5zM4 19h6l-6 6v-6zM4 5h6l-6 6V5zM15 7h5l-5 5V7z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
                     <span className="font-medium">Meeting Schedule</span>
                   </div>
