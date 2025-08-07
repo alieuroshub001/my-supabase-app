@@ -1,4 +1,4 @@
-import { protectRoute } from "@/utils/auth/routeProtection";
+import { protectRoute } from "@/utils/auth/routeProtection.ts";
 import Link from "next/link";
 
 export default async function HRLayout({
