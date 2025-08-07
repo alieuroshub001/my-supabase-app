@@ -60,9 +60,64 @@ export default function Dashboard() {
 
         if (result.needsProfileCreation && result.user) {
           console.log('Profile missing for user:', result.user.id);
-          setNeedsProfileCreation(true);
-          setError("Your profile is missing. This might be due to an incomplete signup process.");
-          return;
+          
+          // Automatically create profile for first-time users
+          try {
+            console.log('Automatically creating profile for user:', result.user.id);
+            const profileResult = await createUserProfile({
+              id: result.user.id,
+              email: result.user.email!,
+              full_name: result.user.user_metadata?.full_name || result.user.email!.split('@')[0],
+              role: (result.user.user_metadata?.role as 'admin' | 'hr' | 'team' | 'client') || 'team',
+              department: result.user.user_metadata?.department,
+              job_title: result.user.user_metadata?.job_title,
+              phone: result.user.user_metadata?.phone,
+            });
+
+            if (profileResult.success && profileResult.profile) {
+              console.log('Profile created successfully:', profileResult.profile);
+              setProfile(profileResult.profile);
+              setNeedsProfileCreation(false);
+              setError(null);
+              
+              // Fetch stats after profile creation
+              try {
+                await fetchUserStats(result.user.id);
+              } catch (statsError) {
+                console.warn('Stats fetch failed after profile creation:', statsError);
+                // Don't fail profile creation if stats fail
+              }
+              
+              // Create user session for first-time login
+              try {
+                await supabase
+                  .from('user_sessions')
+                  .insert({
+                    user_id: result.user.id,
+                    login_time: new Date().toISOString(),
+                    last_activity: new Date().toISOString(),
+                    is_active: true,
+                    ip_address: 'unknown',
+                    user_agent: 'unknown'
+                  });
+              } catch (sessionError) {
+                console.warn('Session creation failed after profile creation:', sessionError);
+                // Don't fail profile creation if session creation fails
+              }
+              
+              return;
+            } else {
+              console.error('Automatic profile creation failed:', profileResult.error);
+              setNeedsProfileCreation(true);
+              setError("Your profile is missing. This might be due to an incomplete signup process.");
+              return;
+            }
+          } catch (profileError) {
+            console.error('Error in automatic profile creation:', profileError);
+            setNeedsProfileCreation(true);
+            setError("Your profile is missing. This might be due to an incomplete signup process.");
+            return;
+          }
         }
 
         if (!result.profile) {
@@ -75,12 +130,43 @@ export default function Dashboard() {
         // Fetch user statistics
         await fetchUserStats(result.user!.id);
 
-        // Update last login session
-        await supabase
-          .from('user_sessions')
-          .update({ is_active: true })
-          .eq('user_id', result.user!.id)
-          .eq('is_active', true);
+        // Create or update user session
+        try {
+          // Check if user has an active session
+          const { data: existingSession, error: sessionCheckError } = await supabase
+            .from('user_sessions')
+            .select('id')
+            .eq('user_id', result.user!.id)
+            .eq('is_active', true)
+            .single();
+
+          if (existingSession) {
+            // Update existing session
+            await supabase
+              .from('user_sessions')
+              .update({ 
+                last_activity: new Date().toISOString(),
+                is_active: true 
+              })
+              .eq('user_id', result.user!.id)
+              .eq('is_active', true);
+          } else {
+            // Create new session for first-time login
+            await supabase
+              .from('user_sessions')
+              .insert({
+                user_id: result.user!.id,
+                login_time: new Date().toISOString(),
+                last_activity: new Date().toISOString(),
+                is_active: true,
+                ip_address: 'unknown', // Could be enhanced with actual IP
+                user_agent: 'unknown' // Could be enhanced with actual user agent
+              });
+          }
+        } catch (sessionError) {
+          console.warn('Session tracking error:', sessionError);
+          // Don't fail the dashboard load for session errors
+        }
 
       } catch (err) {
         console.error("Dashboard data fetch error:", err);
@@ -232,6 +318,23 @@ export default function Dashboard() {
         } catch (statsError) {
           console.warn('Stats fetch failed after profile creation:', statsError);
           // Don't fail profile creation if stats fail
+        }
+        
+        // Create user session for first-time login
+        try {
+          await supabase
+            .from('user_sessions')
+            .insert({
+              user_id: user.id,
+              login_time: new Date().toISOString(),
+              last_activity: new Date().toISOString(),
+              is_active: true,
+              ip_address: 'unknown',
+              user_agent: 'unknown'
+            });
+        } catch (sessionError) {
+          console.warn('Session creation failed after profile creation:', sessionError);
+          // Don't fail profile creation if session creation fails
         }
       } else {
         setError("Failed to create profile. Please try again or contact support.");

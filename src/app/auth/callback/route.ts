@@ -8,7 +8,17 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = createClient();
-    await (await supabase).auth.exchangeCodeForSession(code);
+    const { data, error } = await (await supabase).auth.exchangeCodeForSession(code);
+    
+    if (error) {
+      console.error('Error exchanging code for session:', error);
+      // Redirect to login with error
+      return NextResponse.redirect(requestUrl.origin + "/login?error=verification_failed");
+    }
+    
+    if (data.user) {
+      console.log('User verified successfully:', data.user.id);
+    }
   }
 
   // URL to redirect to after sign in process completes
