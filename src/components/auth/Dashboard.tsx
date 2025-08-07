@@ -4,6 +4,8 @@ import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCurrentUserWithProfile, createUserProfile, debugUserState } from "@/utils/profile/profileUtils";
+import { Sidebar } from "@/components/Sidebar";
+import { usePathname } from "next/navigation";
 
 type UserProfile = {
   id: string;
@@ -43,6 +45,7 @@ export default function Dashboard() {
   const [autoCreatingProfile, setAutoCreatingProfile] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const pathname = usePathname();
 
   // Force reload if ?refresh=1 is present to ensure session cookie is picked up
   useEffect(() => {
@@ -367,6 +370,7 @@ export default function Dashboard() {
       : 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
+  // Sidebar integration: Only show when profile is loaded and not in error/loading state
   if (loading || autoCreatingProfile) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-50">
@@ -459,12 +463,13 @@ export default function Dashboard() {
     );
   }
 
-  // Rest of the dashboard UI remains the same as your original code
+  // Main dashboard with sidebar
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4">
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar role={profile.role} currentPath={pathname} />
+      <main className="flex-1">
         {/* Header */}
-        <div className="flex justify-between items-start mb-8">
+        <div className="flex justify-between items-start mb-8 px-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
               Welcome back, {profile.full_name}!
@@ -497,7 +502,7 @@ export default function Dashboard() {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8 px-8">
             <div className="bg-white p-6 rounded-lg shadow-sm border">
               <div className="flex items-center">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -571,7 +576,7 @@ export default function Dashboard() {
         )}
 
         {/* Profile Information */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-8">
           {/* Main Profile Card */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
@@ -736,7 +741,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
