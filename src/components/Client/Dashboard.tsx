@@ -4,6 +4,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import MessagingButton from "@/components/Messaging/MessagingButton";
 
 type UserProfile = {
   id: string;
@@ -49,48 +50,80 @@ export default function ClientDashboard() {
   useEffect(() => {
     const fetchClientData = async () => {
       try {
+        console.log('🔍 Client Dashboard: Starting fetchClientData');
         setLoading(true);
         setError(null);
 
-        // Get current user - server-side protection already verified authentication
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        // Add a small delay to ensure session is fully established
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Get current user with session check for better reliability
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log('🔍 Client Dashboard: Session check result', { 
+          hasSession: !!session, 
+          hasUser: !!session?.user, 
+          error: sessionError 
+        });
         
-        if (userError || !user) {
-          setError("Unable to load user information.");
+        if (sessionError || !session || !session.user) {
+          console.log("❌ Client Dashboard: No valid session found");
+          setError("Session expired. Please log in again.");
+          // Don't redirect here, let the middleware or route protection handle it
           return;
         }
 
-        // Get user profile - server-side protection already verified role access
+        console.log('✅ Client Dashboard: Valid session found for user', session.user.id);
+        const user = session.user;
+
+        // Get user profile
+        console.log('🔍 Client Dashboard: Fetching profile for user', user.id);
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .single();
 
+        console.log('🔍 Client Dashboard: Profile fetch result', { 
+          hasProfile: !!profileData, 
+          error: profileError,
+          errorCode: profileError?.code 
+        });
+
         if (profileError || !profileData) {
           // If no profile exists, redirect to root for profile creation
           if (profileError?.code === 'PGRST116') {
-            console.log('No profile found for client user, redirecting to root for profile creation');
+            console.log('⚠️ Client Dashboard: No profile found, redirecting to root for profile creation');
             router.push("/");
             return;
           }
+          console.log('❌ Client Dashboard: Profile fetch error', profileError);
           setError("Unable to load your profile.");
           return;
         }
 
+        // Verify client role (server-side protection should handle this, but double-check)
+        console.log('🔍 Client Dashboard: Profile role check', { role: profileData.role });
+        if (profileData.role !== 'client' && profileData.role !== 'admin') {
+          console.log('❌ Client Dashboard: Access denied, wrong role', profileData.role);
+          setError("Access denied. Client privileges required.");
+          return;
+        }
+
+        console.log('✅ Client Dashboard: Role verified, setting profile');
         setProfile(profileData);
         await fetchClientStats(user.id);
 
       } catch (err) {
-        console.error("Client dashboard error:", err);
+        console.error("❌ Client dashboard error:", err);
         setError("Failed to load client dashboard.");
       } finally {
+        console.log('🔍 Client Dashboard: Setting loading to false');
         setLoading(false);
       }
     };
 
     fetchClientData();
-  }, [supabase]);
+  }, [router, supabase]);
 
   const fetchClientStats = async (userId: string) => {
     try {
@@ -236,9 +269,26 @@ export default function ClientDashboard() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Welcome Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Welcome, {profile?.full_name}</h1>
-        <p className="text-gray-600 mt-1">Project status and deliverables overview</p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Welcome, {profile?.full_name}</h1>
+          <p className="text-gray-600 mt-1">Project status and deliverables overview</p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <MessagingButton 
+            currentUserId={profile?.id || ''} 
+            className="bg-white shadow-sm border border-gray-300"
+          />
+          <button
+            onClick={handleSignOut}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Sign Out
+          </button>
+        </div>
       </div>
 
       {/* Project Overview Stats */}
@@ -388,7 +438,7 @@ export default function ClientDashboard() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-5 5v-5zM4 19h6l-6 6v-6zM4 5h6l-6 6V5zM15 7h5l-5 5V7z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3a4 4 0 118 0v4M3 21h18l-2-9H5l-2 9z" />
                     </svg>
                     <span className="font-medium">Project Calendar</span>
                   </div>
@@ -402,7 +452,7 @@ export default function ClientDashboard() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <svg className="w-5 h-5 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-5 5v-5zM4 19h6l-6 6v-6zM4 5h6l-6 6V5zM15 7h5l-5 5V7z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
                     <span className="font-medium">Meeting Schedule</span>
                   </div>
