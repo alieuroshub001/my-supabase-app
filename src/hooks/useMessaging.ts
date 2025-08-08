@@ -27,6 +27,7 @@ export function useMessaging(currentUserId: string) {
 
   // Initialize messaging data
   const initialize = useCallback(async () => {
+    if (!currentUserId) return; // wait for a valid user id
     try {
       setState(prev => ({ ...prev, loading: true, error: undefined }));
 
@@ -63,7 +64,7 @@ export function useMessaging(currentUserId: string) {
         error: 'Failed to load messaging data'
       }));
     }
-  }, [currentUserId, state.activeChannelId]);
+  }, [currentUserId, state.activeChannelId, loadChannelMessages, loadChannelParticipants, setupSubscriptions]);
 
   // Load messages for a channel
   const loadChannelMessages = useCallback(async (channelId: string, offset: number = 0) => {
@@ -400,10 +401,11 @@ export function useMessaging(currentUserId: string) {
     return () => {
       subscriptions.current.forEach(sub => sub?.unsubscribe());
     };
-  }, []);
+  }, [initialize]);
 
   // Update presence to offline on unmount
   useEffect(() => {
+    if (!currentUserId) return;
     const handleBeforeUnload = () => {
       MessagingService.updatePresence(currentUserId, 'offline');
     };
