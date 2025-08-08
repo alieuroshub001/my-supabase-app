@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from 'react';
+import { MessagingService } from '@/utils/messaging/messagingService';
 import type { UserListProps } from '@/types/messaging';
 
 export default function UserList({ 
@@ -8,6 +10,32 @@ export default function UserList({
   onStartDM, 
   currentUserId 
 }: UserListProps) {
+  const [allUsers, setAllUsers] = useState<UserListProps['participants']>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const users = await MessagingService.getAllUsers();
+      if (!isMounted) return;
+      const mapped = users
+        .filter(u => u.id !== currentUserId)
+        .map((u) => ({
+          id: u.id,
+          channel_id: '',
+          user_id: u.id,
+          role: 'member',
+          joined_at: '',
+          last_read_at: '',
+          is_muted: false,
+          user: u,
+        }));
+      setAllUsers(mapped);
+    })();
+    return () => { isMounted = false; };
+  }, [currentUserId]);
+
+  const list = (allUsers.length > 0 ? allUsers : participants).filter((p) => p.user_id !== currentUserId);
+
   const getPresenceColor = (status: string) => {
     switch (status) {
       case 'online': return 'bg-green-500';
@@ -33,15 +61,13 @@ export default function UserList({
       </div>
       
       <div className="flex-1 overflow-y-auto px-4 space-y-2">
-        {participants.map((participant) => {
-          if (participant.user_id === currentUserId) return null;
-          
+        {list.map((participant) => {
           const presence = userPresence[participant.user_id];
           const user = participant.user;
           
           return (
             <button
-              key={participant.id}
+              key={participant.user_id}
               onClick={() => onStartDM(participant.user_id)}
               className="w-full flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 transition-colors text-left"
             >
@@ -74,7 +100,7 @@ export default function UserList({
           );
         })}
         
-        {participants.filter(p => p.user_id !== currentUserId).length === 0 && (
+        {list.length === 0 && (
           <div className="text-center py-8">
             <p className="text-gray-500 text-sm">No other team members</p>
           </div>

@@ -51,12 +51,14 @@ export default function MessageArea({
     e.preventDefault();
     if (!messageInput.trim()) return;
 
-    await onSendMessage({
+    const res = await onSendMessage({
       content: messageInput.trim(),
       message_type: 'text'
     });
 
-    setMessageInput('');
+    if (res) {
+      setMessageInput('');
+    }
   };
 
   const handleEditMessage = async (messageId: string) => {

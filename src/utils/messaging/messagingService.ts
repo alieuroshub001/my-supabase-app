@@ -37,7 +37,7 @@ export class MessagingService {
         `)
         .eq('channel_members.user_id', userId)
         .eq('is_archived', false)
-        .order('last_message_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) {
         logError('getChannels', error);
@@ -62,6 +62,12 @@ export class MessagingService {
     try {
       console.log('🔍 MessagingService.createChannel: Creating channel', request.name);
       
+      // Ensure we use the authenticated user for RLS compliance
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       // Create the channel (compatible with schemas lacking participant_ids/updated_at)
       const { data: channel, error: channelError } = await supabase
         .from('channels')
@@ -69,7 +75,7 @@ export class MessagingService {
           name: request.name,
           description: request.description,
           type: request.type,
-          created_by: creatorId,
+          created_by: user.id,
           created_at: new Date().toISOString()
         })
         .select()
@@ -80,20 +86,16 @@ export class MessagingService {
         throw channelError;
       }
 
-      // Add participants to channel_members table
-      const participants = [creatorId, ...(request.participant_ids || [])];
-
-      const participantInserts = participants.map(userId => ({
-        channel_id: channel.id,
-        user_id: userId,
-        role: userId === creatorId ? 'admin' : 'member',
-        joined_at: new Date().toISOString(),
-        last_read_at: new Date().toISOString()
-      }));
-
+      // Add ONLY the current user to channel_members (RLS allows inserting own membership)
       const { error: participantError } = await supabase
         .from('channel_members')
-        .insert(participantInserts);
+        .insert({
+          channel_id: channel.id,
+          user_id: user.id,
+          role: 'admin',
+          joined_at: new Date().toISOString(),
+          last_read_at: new Date().toISOString()
+        });
 
       if (participantError) {
         logError('createChannel.participants', participantError);
