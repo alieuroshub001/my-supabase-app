@@ -329,33 +329,35 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to get unread message count for a user
-CREATE OR REPLACE FUNCTION get_unread_count(p_user_id UUID, p_channel_id UUID)
+DROP FUNCTION IF EXISTS get_unread_count(uuid, uuid);
+CREATE OR REPLACE FUNCTION get_unread_count(user_id UUID, channel_id UUID)
 RETURNS INTEGER AS $$
 DECLARE
   last_read TIMESTAMP WITH TIME ZONE;
   unread_count INTEGER;
 BEGIN
-  SELECT last_read_at INTO last_read
-  FROM channel_members
-  WHERE user_id = p_user_id AND channel_id = p_channel_id;
+  SELECT cm.last_read_at INTO last_read
+  FROM channel_members cm
+  WHERE cm.user_id = user_id AND cm.channel_id = channel_id;
   
   SELECT COUNT(*) INTO unread_count
-  FROM messages
-  WHERE channel_id = p_channel_id 
-    AND created_at > COALESCE(last_read, '1970-01-01'::timestamp)
-    AND sender_id != p_user_id;
+  FROM messages m
+  WHERE m.channel_id = channel_id 
+    AND m.created_at > COALESCE(last_read, '1970-01-01'::timestamptz)
+    AND m.sender_id != user_id;
   
   RETURN COALESCE(unread_count, 0);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to update last read timestamp
-CREATE OR REPLACE FUNCTION mark_channel_as_read(p_user_id UUID, p_channel_id UUID)
+DROP FUNCTION IF EXISTS mark_channel_as_read(uuid, uuid);
+CREATE OR REPLACE FUNCTION mark_channel_as_read(user_id UUID, channel_id UUID)
 RETURNS VOID AS $$
 BEGIN
   UPDATE channel_members
   SET last_read_at = NOW()
-  WHERE user_id = p_user_id AND channel_id = p_channel_id;
+  WHERE channel_members.user_id = user_id AND channel_members.channel_id = channel_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
