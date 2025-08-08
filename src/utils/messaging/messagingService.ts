@@ -12,10 +12,23 @@ import type {
 
 const supabase = createClient();
 
+// Helper function for better error logging
+const logError = (operation: string, error: any) => {
+  console.error(`❌ MessagingService.${operation}:`, {
+    message: error?.message || 'Unknown error',
+    code: error?.code,
+    details: error?.details,
+    hint: error?.hint,
+    error: error
+  });
+};
+
 export class MessagingService {
   // Channel operations
   static async getChannels(userId: string): Promise<Channel[]> {
     try {
+      console.log('🔍 MessagingService.getChannels: Starting for user', userId);
+      
       const { data, error } = await supabase
         .from('channels')
         .select(`
@@ -26,16 +39,30 @@ export class MessagingService {
         .eq('is_archived', false)
         .order('updated_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        logError('getChannels', error);
+        
+        // Check if the error is due to missing tables
+        if (error.code === '42P01') {
+          console.error('💡 The messaging tables don\'t exist. Please run the messaging schema first.');
+          console.error('💡 Run: psql -h your-supabase-host -U postgres -d postgres -f messaging_schema.sql');
+        }
+        
+        throw error;
+      }
+
+      console.log('✅ MessagingService.getChannels: Found', data?.length || 0, 'channels');
       return data || [];
     } catch (error) {
-      console.error('Error fetching channels:', error);
+      logError('getChannels', error);
       return [];
     }
   }
 
   static async createChannel(request: CreateChannelRequest, creatorId: string): Promise<Channel | null> {
     try {
+      console.log('🔍 MessagingService.createChannel: Creating channel', request.name);
+      
       // Create the channel
       const { data: channel, error: channelError } = await supabase
         .from('channels')
@@ -49,7 +76,10 @@ export class MessagingService {
         .select()
         .single();
 
-      if (channelError) throw channelError;
+      if (channelError) {
+        logError('createChannel', channelError);
+        throw channelError;
+      }
 
       // Add participants
       const participants = request.type === 'direct' 
@@ -66,31 +96,45 @@ export class MessagingService {
         .from('channel_participants')
         .insert(participantInserts);
 
-      if (participantError) throw participantError;
+      if (participantError) {
+        logError('createChannel.participants', participantError);
+        throw participantError;
+      }
 
+      console.log('✅ MessagingService.createChannel: Created channel', channel.id);
       return channel;
     } catch (error) {
-      console.error('Error creating channel:', error);
+      logError('createChannel', error);
       return null;
     }
   }
 
   static async createDirectMessage(userId1: string, userId2: string): Promise<string | null> {
     try {
-      const { data } = await supabase.rpc('create_direct_message_channel', {
+      console.log('🔍 MessagingService.createDirectMessage: Creating DM between', userId1, 'and', userId2);
+      
+      const { data, error } = await supabase.rpc('create_direct_message_channel', {
         user1_id: userId1,
         user2_id: userId2
       });
       
+      if (error) {
+        logError('createDirectMessage', error);
+        throw error;
+      }
+      
+      console.log('✅ MessagingService.createDirectMessage: Created DM channel', data);
       return data;
     } catch (error) {
-      console.error('Error creating direct message:', error);
+      logError('createDirectMessage', error);
       return null;
     }
   }
 
   static async joinChannel(channelId: string, userId: string): Promise<boolean> {
     try {
+      console.log('🔍 MessagingService.joinChannel: User', userId, 'joining channel', channelId);
+      
       const { error } = await supabase
         .from('channel_participants')
         .insert({
@@ -99,24 +143,38 @@ export class MessagingService {
           role: 'member'
         });
 
-      return !error;
+      if (error) {
+        logError('joinChannel', error);
+        return false;
+      }
+
+      console.log('✅ MessagingService.joinChannel: Successfully joined channel');
+      return true;
     } catch (error) {
-      console.error('Error joining channel:', error);
+      logError('joinChannel', error);
       return false;
     }
   }
 
   static async leaveChannel(channelId: string, userId: string): Promise<boolean> {
     try {
+      console.log('🔍 MessagingService.leaveChannel: User', userId, 'leaving channel', channelId);
+      
       const { error } = await supabase
         .from('channel_participants')
         .delete()
         .eq('channel_id', channelId)
         .eq('user_id', userId);
 
-      return !error;
+      if (error) {
+        logError('leaveChannel', error);
+        return false;
+      }
+
+      console.log('✅ MessagingService.leaveChannel: Successfully left channel');
+      return true;
     } catch (error) {
-      console.error('Error leaving channel:', error);
+      logError('leaveChannel', error);
       return false;
     }
   }
@@ -124,6 +182,8 @@ export class MessagingService {
   // Message operations
   static async getMessages(channelId: string, limit: number = 50, offset: number = 0): Promise<Message[]> {
     try {
+      console.log('🔍 MessagingService.getMessages: Getting messages for channel', channelId);
+      
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -144,19 +204,29 @@ export class MessagingService {
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
-      if (error) throw error;
+      if (error) {
+        logError('getMessages', error);
+        throw error;
+      }
+
+      console.log('✅ MessagingService.getMessages: Found', data?.length || 0, 'messages');
       return (data || []).reverse(); // Reverse to show oldest first
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      logError('getMessages', error);
       return [];
     }
   }
 
   static async sendMessage(request: SendMessageRequest): Promise<Message | null> {
     try {
+      console.log('🔍 MessagingService.sendMessage: Sending message to channel', request.channel_id);
+      
       // Get current user ID from auth
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      if (!user) {
+        console.error('❌ MessagingService.sendMessage: User not authenticated');
+        throw new Error('User not authenticated');
+      }
 
       const { data: message, error: messageError } = await supabase
         .from('messages')
@@ -177,7 +247,10 @@ export class MessagingService {
         `)
         .single();
 
-      if (messageError) throw messageError;
+      if (messageError) {
+        logError('sendMessage', messageError);
+        throw messageError;
+      }
 
       // Handle mentions
       if (request.mentioned_user_ids && request.mentioned_user_ids.length > 0) {
@@ -186,24 +259,36 @@ export class MessagingService {
           mentioned_user_id: userId
         }));
 
-        await supabase.from('message_mentions').insert(mentions);
+        const { error: mentionError } = await supabase.from('message_mentions').insert(mentions);
+        if (mentionError) {
+          logError('sendMessage.mentions', mentionError);
+          // Don't fail the message send for mention errors
+        }
       }
 
       // Update channel's updated_at timestamp
-      await supabase
+      const { error: updateError } = await supabase
         .from('channels')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', request.channel_id);
 
+      if (updateError) {
+        logError('sendMessage.updateChannel', updateError);
+        // Don't fail the message send for channel update errors
+      }
+
+      console.log('✅ MessagingService.sendMessage: Message sent successfully', message.id);
       return message;
     } catch (error) {
-      console.error('Error sending message:', error);
+      logError('sendMessage', error);
       return null;
     }
   }
 
   static async editMessage(messageId: string, content: string): Promise<boolean> {
     try {
+      console.log('🔍 MessagingService.editMessage: Editing message', messageId);
+      
       const { error } = await supabase
         .from('messages')
         .update({ 
@@ -213,23 +298,37 @@ export class MessagingService {
         })
         .eq('id', messageId);
 
-      return !error;
+      if (error) {
+        logError('editMessage', error);
+        return false;
+      }
+
+      console.log('✅ MessagingService.editMessage: Message edited successfully');
+      return true;
     } catch (error) {
-      console.error('Error editing message:', error);
+      logError('editMessage', error);
       return false;
     }
   }
 
   static async deleteMessage(messageId: string): Promise<boolean> {
     try {
+      console.log('🔍 MessagingService.deleteMessage: Deleting message', messageId);
+      
       const { error } = await supabase
         .from('messages')
         .update({ is_deleted: true })
         .eq('id', messageId);
 
-      return !error;
+      if (error) {
+        logError('deleteMessage', error);
+        return false;
+      }
+
+      console.log('✅ MessagingService.deleteMessage: Message deleted successfully');
+      return true;
     } catch (error) {
-      console.error('Error deleting message:', error);
+      logError('deleteMessage', error);
       return false;
     }
   }
@@ -237,6 +336,8 @@ export class MessagingService {
   // Reaction operations
   static async addReaction(messageId: string, userId: string, emoji: string): Promise<boolean> {
     try {
+      console.log('🔍 MessagingService.addReaction: Adding reaction', emoji, 'to message', messageId);
+      
       const { error } = await supabase
         .from('message_reactions')
         .insert({
@@ -245,15 +346,23 @@ export class MessagingService {
           emoji
         });
 
-      return !error;
+      if (error) {
+        logError('addReaction', error);
+        return false;
+      }
+
+      console.log('✅ MessagingService.addReaction: Reaction added successfully');
+      return true;
     } catch (error) {
-      console.error('Error adding reaction:', error);
+      logError('addReaction', error);
       return false;
     }
   }
 
   static async removeReaction(messageId: string, userId: string, emoji: string): Promise<boolean> {
     try {
+      console.log('🔍 MessagingService.removeReaction: Removing reaction', emoji, 'from message', messageId);
+      
       const { error } = await supabase
         .from('message_reactions')
         .delete()
@@ -261,9 +370,15 @@ export class MessagingService {
         .eq('user_id', userId)
         .eq('emoji', emoji);
 
-      return !error;
+      if (error) {
+        logError('removeReaction', error);
+        return false;
+      }
+
+      console.log('✅ MessagingService.removeReaction: Reaction removed successfully');
+      return true;
     } catch (error) {
-      console.error('Error removing reaction:', error);
+      logError('removeReaction', error);
       return false;
     }
   }
@@ -271,6 +386,8 @@ export class MessagingService {
   // Channel participants
   static async getChannelParticipants(channelId: string): Promise<ChannelParticipant[]> {
     try {
+      console.log('🔍 MessagingService.getChannelParticipants: Getting participants for channel', channelId);
+      
       const { data, error } = await supabase
         .from('channel_participants')
         .select(`
@@ -279,10 +396,15 @@ export class MessagingService {
         `)
         .eq('channel_id', channelId);
 
-      if (error) throw error;
+      if (error) {
+        logError('getChannelParticipants', error);
+        throw error;
+      }
+
+      console.log('✅ MessagingService.getChannelParticipants: Found', data?.length || 0, 'participants');
       return data || [];
     } catch (error) {
-      console.error('Error fetching participants:', error);
+      logError('getChannelParticipants', error);
       return [];
     }
   }
@@ -290,6 +412,8 @@ export class MessagingService {
   // User presence
   static async updatePresence(userId: string, status: UserPresence['status'], customStatus?: string): Promise<boolean> {
     try {
+      console.log('🔍 MessagingService.updatePresence: Updating presence for user', userId, 'to', status);
+      
       const { error } = await supabase
         .from('user_presence')
         .upsert({
@@ -300,24 +424,37 @@ export class MessagingService {
           updated_at: new Date().toISOString()
         });
 
-      return !error;
+      if (error) {
+        logError('updatePresence', error);
+        return false;
+      }
+
+      console.log('✅ MessagingService.updatePresence: Presence updated successfully');
+      return true;
     } catch (error) {
-      console.error('Error updating presence:', error);
+      logError('updatePresence', error);
       return false;
     }
   }
 
   static async getUsersPresence(userIds: string[]): Promise<UserPresence[]> {
     try {
+      console.log('🔍 MessagingService.getUsersPresence: Getting presence for', userIds.length, 'users');
+      
       const { data, error } = await supabase
         .from('user_presence')
         .select('*')
         .in('user_id', userIds);
 
-      if (error) throw error;
+      if (error) {
+        logError('getUsersPresence', error);
+        throw error;
+      }
+
+      console.log('✅ MessagingService.getUsersPresence: Found presence for', data?.length || 0, 'users');
       return data || [];
     } catch (error) {
-      console.error('Error fetching presence:', error);
+      logError('getUsersPresence', error);
       return [];
     }
   }
@@ -325,6 +462,8 @@ export class MessagingService {
   // File upload
   static async uploadFile(file: File, channelId: string): Promise<FileUploadResponse | null> {
     try {
+      console.log('🔍 MessagingService.uploadFile: Uploading file', file.name, 'to channel', channelId);
+      
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `messages/${channelId}/${fileName}`;
@@ -333,12 +472,16 @@ export class MessagingService {
         .from('message-files')
         .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        logError('uploadFile', uploadError);
+        throw uploadError;
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('message-files')
         .getPublicUrl(filePath);
 
+      console.log('✅ MessagingService.uploadFile: File uploaded successfully');
       return {
         file_url: publicUrl,
         file_name: file.name,
@@ -347,7 +490,7 @@ export class MessagingService {
         mime_type: file.type
       };
     } catch (error) {
-      console.error('Error uploading file:', error);
+      logError('uploadFile', error);
       return null;
     }
   }
@@ -355,6 +498,8 @@ export class MessagingService {
   // Search messages
   static async searchMessages(query: string, channelId?: string): Promise<Message[]> {
     try {
+      console.log('🔍 MessagingService.searchMessages: Searching for', query);
+      
       let queryBuilder = supabase
         .from('messages')
         .select(`
@@ -372,10 +517,15 @@ export class MessagingService {
 
       const { data, error } = await queryBuilder;
 
-      if (error) throw error;
+      if (error) {
+        logError('searchMessages', error);
+        throw error;
+      }
+
+      console.log('✅ MessagingService.searchMessages: Found', data?.length || 0, 'messages');
       return data || [];
     } catch (error) {
-      console.error('Error searching messages:', error);
+      logError('searchMessages', error);
       return [];
     }
   }
@@ -383,14 +533,22 @@ export class MessagingService {
   // Mark channel as read
   static async markChannelAsRead(channelId: string, userId: string): Promise<boolean> {
     try {
+      console.log('🔍 MessagingService.markChannelAsRead: Marking channel', channelId, 'as read for user', userId);
+      
       const { error } = await supabase.rpc('mark_channel_as_read', {
         user_id: userId,
         channel_id: channelId
       });
 
-      return !error;
+      if (error) {
+        logError('markChannelAsRead', error);
+        return false;
+      }
+
+      console.log('✅ MessagingService.markChannelAsRead: Channel marked as read');
+      return true;
     } catch (error) {
-      console.error('Error marking channel as read:', error);
+      logError('markChannelAsRead', error);
       return false;
     }
   }
@@ -398,22 +556,31 @@ export class MessagingService {
   // Get all users (for mentions and DMs)
   static async getAllUsers(): Promise<ChannelParticipant['user'][]> {
     try {
+      console.log('🔍 MessagingService.getAllUsers: Getting all active users');
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, email, is_active')
         .eq('is_active', true)
         .order('full_name');
 
-      if (error) throw error;
+      if (error) {
+        logError('getAllUsers', error);
+        throw error;
+      }
+
+      console.log('✅ MessagingService.getAllUsers: Found', data?.length || 0, 'users');
       return data || [];
     } catch (error) {
-      console.error('Error fetching users:', error);
+      logError('getAllUsers', error);
       return [];
     }
   }
 
   // Real-time subscriptions
   static subscribeToChannel(channelId: string, onMessage: (message: Message) => void) {
+    console.log('🔍 MessagingService.subscribeToChannel: Setting up subscription for channel', channelId);
+    
     return supabase
       .channel(`messages:${channelId}`)
       .on('postgres_changes', {
@@ -422,12 +589,17 @@ export class MessagingService {
         table: 'messages',
         filter: `channel_id=eq.${channelId}`
       }, (payload) => {
+        console.log('📨 MessagingService.subscribeToChannel: New message received', payload.new);
         onMessage(payload.new as Message);
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('🔗 MessagingService.subscribeToChannel: Subscription status', status);
+      });
   }
 
   static subscribeToChannels(userId: string, onChannelUpdate: (channel: Channel) => void) {
+    console.log('🔍 MessagingService.subscribeToChannels: Setting up channel subscription for user', userId);
+    
     return supabase
       .channel(`user-channels:${userId}`)
       .on('postgres_changes', {
@@ -435,12 +607,17 @@ export class MessagingService {
         schema: 'public',
         table: 'channels'
       }, (payload) => {
+        console.log('📢 MessagingService.subscribeToChannels: Channel update received', payload.new);
         onChannelUpdate(payload.new as Channel);
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('🔗 MessagingService.subscribeToChannels: Subscription status', status);
+      });
   }
 
   static subscribeToPresence(onPresenceUpdate: (presence: UserPresence) => void) {
+    console.log('🔍 MessagingService.subscribeToPresence: Setting up presence subscription');
+    
     return supabase
       .channel('user-presence')
       .on('postgres_changes', {
@@ -448,8 +625,11 @@ export class MessagingService {
         schema: 'public',
         table: 'user_presence'
       }, (payload) => {
+        console.log('👤 MessagingService.subscribeToPresence: Presence update received', payload.new);
         onPresenceUpdate(payload.new as UserPresence);
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('🔗 MessagingService.subscribeToPresence: Subscription status', status);
+      });
   }
 }
