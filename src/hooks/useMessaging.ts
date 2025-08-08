@@ -25,47 +25,6 @@ export function useMessaging(currentUserId: string) {
 
   const subscriptions = useRef<any[]>([]);
 
-  // Initialize messaging data
-  const initialize = useCallback(async () => {
-    if (!currentUserId) return; // wait for a valid user id
-    try {
-      setState(prev => ({ ...prev, loading: true, error: undefined }));
-
-      // Load channels
-      const channels = await MessagingService.getChannels(currentUserId);
-      
-      // Set first channel as active if none selected
-      const activeChannelId = state.activeChannelId || channels[0]?.id;
-
-      setState(prev => ({
-        ...prev,
-        channels,
-        activeChannelId,
-        loading: false
-      }));
-
-      // Load messages for active channel
-      if (activeChannelId) {
-        await loadChannelMessages(activeChannelId);
-        await loadChannelParticipants(activeChannelId);
-      }
-
-      // Update user presence
-      await MessagingService.updatePresence(currentUserId, 'online');
-
-      // Set up real-time subscriptions
-      setupSubscriptions();
-
-    } catch (error) {
-      console.error('Error initializing messaging:', error);
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: 'Failed to load messaging data'
-      }));
-    }
-  }, [currentUserId, state.activeChannelId, loadChannelMessages, loadChannelParticipants, setupSubscriptions]);
-
   // Load messages for a channel
   const loadChannelMessages = useCallback(async (channelId: string, offset: number = 0) => {
     try {
@@ -160,6 +119,47 @@ export function useMessaging(currentUserId: string) {
       subscriptions.current.push(messageSub);
     }
   }, [currentUserId, state.activeChannelId]);
+
+  // Initialize messaging data (moved below dependencies to avoid TDZ)
+  const initialize = useCallback(async () => {
+    if (!currentUserId) return; // wait for a valid user id
+    try {
+      setState(prev => ({ ...prev, loading: true, error: undefined }));
+
+      // Load channels
+      const channels = await MessagingService.getChannels(currentUserId);
+      
+      // Set first channel as active if none selected
+      const activeChannelId = state.activeChannelId || channels[0]?.id;
+
+      setState(prev => ({
+        ...prev,
+        channels,
+        activeChannelId,
+        loading: false
+      }));
+
+      // Load messages for active channel
+      if (activeChannelId) {
+        await loadChannelMessages(activeChannelId);
+        await loadChannelParticipants(activeChannelId);
+      }
+
+      // Update user presence
+      await MessagingService.updatePresence(currentUserId, 'online');
+
+      // Set up real-time subscriptions
+      setupSubscriptions();
+
+    } catch (error) {
+      console.error('Error initializing messaging:', error);
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: 'Failed to load messaging data'
+      }));
+    }
+  }, [currentUserId, state.activeChannelId, loadChannelMessages, loadChannelParticipants, setupSubscriptions]);
 
   // Channel operations
   const selectChannel = useCallback(async (channelId: string) => {

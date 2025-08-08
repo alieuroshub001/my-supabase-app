@@ -17,15 +17,16 @@ export default function UserList({
     (async () => {
       const users = await MessagingService.getAllUsers();
       if (!isMounted) return;
-      const mapped = users
-        .filter(u => u.id !== currentUserId)
+      const mapped = (users || [])
+        .filter((u): u is NonNullable<typeof u> => !!u && !!u.id)
+        .filter((u) => u.id !== currentUserId)
         .map((u) => ({
           id: u.id,
           channel_id: '',
           user_id: u.id,
-          role: 'member',
-          joined_at: '',
-          last_read_at: '',
+          role: 'member' as const,
+          joined_at: new Date().toISOString(),
+          last_read_at: new Date().toISOString(),
           is_muted: false,
           user: u,
         }));
