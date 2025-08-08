@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { useState } from "react";
-import AuthDebugger from "@/components/debug/AuthDebugger";
+// import AuthDebugger from "@/components/debug/AuthDebugger";
 
 export default function DebugPage() {
   const [testResult, setTestResult] = useState<string>("");
@@ -131,7 +131,7 @@ export default function DebugPage() {
           </div>
           
           <div className="bg-white rounded-lg shadow-md p-6">
-            <AuthDebugger />
+            <div className="text-sm text-gray-500">AuthDebugger disabled in build.</div>
           </div>
         </div>
       </div>
