@@ -244,6 +244,21 @@ Enable detailed logging by setting:
 NEXT_PUBLIC_DEBUG_MESSAGING=true
 ```
 
+## Troubleshooting: Empty errors from getChannels/createChannel
+
+If you see logs like `❌ MessagingService.getChannels: {}` or `❌ MessagingService.createChannel: {}` with an empty error object:
+
+- Ensure the following exist in your `channels` table:
+  - Columns: `name (TEXT NOT NULL)`, `type (ENUM)`, `created_by (UUID)`, `is_archived (BOOLEAN DEFAULT false)`, `last_message_at (TIMESTAMPTZ)`
+- Ensure table `channel_members` exists with at least: `channel_id (UUID)`, `user_id (UUID)`, `role`, `joined_at`, `last_read_at`, and RLS policies that allow the current user to SELECT and INSERT their own membership.
+- Verify RLS policies allow:
+  - SELECT on `channels` for channels the user is a member of
+  - SELECT on `channel_members` for their channels
+  - INSERT on `messages`/`channel_members`/`message_reactions` with `auth.uid()` checks
+- Enable Realtime for `messages`, `channels`, `channel_members`, `user_presence`, `message_reactions`.
+
+The service now logs `error.code` or `error.error_description` when available.
+
 ## 🔄 **Future Enhancements**
 
 The system is designed to be easily extensible. Potential additions:
