@@ -288,6 +288,7 @@ RETURNS UUID AS $$
 DECLARE
   channel_id UUID;
   existing_channel_id UUID;
+  dm_name TEXT;
 BEGIN
   -- Check if a DM channel already exists between these users
   SELECT c.id INTO existing_channel_id
@@ -300,9 +301,12 @@ BEGIN
     RETURN existing_channel_id;
   END IF;
   
+  -- Generate a deterministic non-null name for DM to satisfy NOT NULL constraint
+  dm_name := 'dm:' || substr(user1_id::text, 1, 8) || ':' || substr(user2_id::text, 1, 8);
+  
   -- Create new DM channel
   INSERT INTO channels (name, type, created_by, participant_ids, created_at, updated_at)
-  VALUES (NULL, 'direct', user1_id, ARRAY[user1_id, user2_id], NOW(), NOW())
+  VALUES (dm_name, 'direct', user1_id, ARRAY[user1_id, user2_id], NOW(), NOW())
   RETURNING id INTO channel_id;
   
   -- Add both users as participants
@@ -316,7 +320,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to get unread message count for a user
-CREATE OR REPLACE FUNCTION get_unread_count(user_id UUID, channel_id UUID)
+CREATE OR REPLACE FUNCTION get_unread_count(p_user_id UUID, p_channel_id UUID)
 RETURNS INTEGER AS $$
 DECLARE
   last_read TIMESTAMP WITH TIME ZONE;
@@ -324,25 +328,25 @@ DECLARE
 BEGIN
   SELECT last_read_at INTO last_read
   FROM channel_members
-  WHERE user_id = user_id AND channel_id = channel_id;
+  WHERE user_id = p_user_id AND channel_id = p_channel_id;
   
   SELECT COUNT(*) INTO unread_count
   FROM messages
-  WHERE channel_id = channel_id 
+  WHERE channel_id = p_channel_id 
     AND created_at > COALESCE(last_read, '1970-01-01'::timestamp)
-    AND sender_id != user_id;
+    AND sender_id != p_user_id;
   
   RETURN COALESCE(unread_count, 0);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to update last read timestamp
-CREATE OR REPLACE FUNCTION mark_channel_as_read(user_id UUID, channel_id UUID)
+CREATE OR REPLACE FUNCTION mark_channel_as_read(p_user_id UUID, p_channel_id UUID)
 RETURNS VOID AS $$
 BEGIN
   UPDATE channel_members
   SET last_read_at = NOW()
-  WHERE user_id = user_id AND channel_id = channel_id;
+  WHERE user_id = p_user_id AND channel_id = p_channel_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

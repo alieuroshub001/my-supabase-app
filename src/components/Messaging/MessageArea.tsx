@@ -202,7 +202,7 @@ export default function MessageArea({
                           <p className="text-sm text-gray-900">{message.content}</p>
                           
                           {/* Message actions */}
-                          {message.user_id === currentUserId && (
+                          {message.sender_id === currentUserId && (
                             <div className="mt-1 flex space-x-2">
                               <button
                                 onClick={() => {

@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import MessagingButton from "@/components/Messaging/MessagingButton";
 
 type UserProfile = {
   id: string;
@@ -250,9 +251,21 @@ export default function TeamDashboard() {
   }
 
   return (
-  
+    
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header with Messaging */}
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Welcome, {profile?.full_name}</h1>
+            <p className="text-gray-600 mt-1">Team Dashboard</p>
+          </div>
+          <div className="flex items-center space-x-3">
+            {profile?.id && (
+              <MessagingButton currentUserId={profile.id} className="bg-white shadow-sm border border-gray-300" />
+            )}
+          </div>
+        </div>
         {/* Work Overview Stats */}
         {stats && (
           <div className="mb-8">

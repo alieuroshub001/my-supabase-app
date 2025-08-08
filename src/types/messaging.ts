@@ -34,7 +34,7 @@ export interface ChannelParticipant {
 export interface Message {
   id: string;
   channel_id: string;
-  user_id?: string;
+  sender_id: string; // renamed from user_id to reflect DB schema
   content?: string;
   message_type: 'text' | 'file' | 'image' | 'system';
   parent_message_id?: string; // for threading
