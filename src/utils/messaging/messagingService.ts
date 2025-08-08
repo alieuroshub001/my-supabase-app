@@ -33,9 +33,9 @@ export class MessagingService {
         .from('channels')
         .select(`
           *,
-          channel_participants!inner(user_id, last_read_at)
+          channel_members!inner(user_id, last_read_at)
         `)
-        .eq('channel_participants.user_id', userId)
+        .eq('channel_members.user_id', userId)
         .eq('is_archived', false)
         .order('updated_at', { ascending: false });
 
@@ -45,7 +45,7 @@ export class MessagingService {
         // Check if the error is due to missing tables
         if (error.code === '42P01') {
           console.error('💡 The messaging tables don\'t exist. Please run the messaging schema first.');
-          console.error('💡 Run: psql -h your-supabase-host -U postgres -d postgres -f messaging_schema.sql');
+          console.error('💡 Run the messaging_schema_fixed.sql file in your Supabase SQL editor.');
         }
         
         throw error;
@@ -71,7 +71,9 @@ export class MessagingService {
           description: request.description,
           type: request.type,
           created_by: creatorId,
-          participant_ids: request.type === 'direct' ? request.participant_ids : undefined
+          participant_ids: request.type === 'direct' ? request.participant_ids : undefined,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -81,7 +83,7 @@ export class MessagingService {
         throw channelError;
       }
 
-      // Add participants
+      // Add participants to channel_members table
       const participants = request.type === 'direct' 
         ? request.participant_ids || []
         : [creatorId, ...(request.participant_ids || [])];
@@ -89,11 +91,13 @@ export class MessagingService {
       const participantInserts = participants.map(userId => ({
         channel_id: channel.id,
         user_id: userId,
-        role: userId === creatorId ? 'admin' : 'member'
+        role: userId === creatorId ? 'admin' : 'member',
+        joined_at: new Date().toISOString(),
+        last_read_at: new Date().toISOString()
       }));
 
       const { error: participantError } = await supabase
-        .from('channel_participants')
+        .from('channel_members')
         .insert(participantInserts);
 
       if (participantError) {
@@ -136,11 +140,13 @@ export class MessagingService {
       console.log('🔍 MessagingService.joinChannel: User', userId, 'joining channel', channelId);
       
       const { error } = await supabase
-        .from('channel_participants')
+        .from('channel_members')
         .insert({
           channel_id: channelId,
           user_id: userId,
-          role: 'member'
+          role: 'member',
+          joined_at: new Date().toISOString(),
+          last_read_at: new Date().toISOString()
         });
 
       if (error) {
@@ -161,7 +167,7 @@ export class MessagingService {
       console.log('🔍 MessagingService.leaveChannel: User', userId, 'leaving channel', channelId);
       
       const { error } = await supabase
-        .from('channel_participants')
+        .from('channel_members')
         .delete()
         .eq('channel_id', channelId)
         .eq('user_id', userId);
@@ -188,7 +194,7 @@ export class MessagingService {
         .from('messages')
         .select(`
           *,
-          user:profiles(id, full_name, avatar_url, email),
+          user:profiles!messages_sender_id_fkey(id, full_name, avatar_url, email),
           reactions:message_reactions(
             id, emoji, user_id,
             user:profiles(id, full_name, avatar_url)
@@ -232,18 +238,20 @@ export class MessagingService {
         .from('messages')
         .insert({
           channel_id: request.channel_id,
-          user_id: user.id, // Use the authenticated user's ID
+          sender_id: user.id, // Use sender_id instead of user_id
           content: request.content,
           message_type: request.message_type || 'text',
           parent_message_id: request.parent_message_id,
           file_url: request.file_url,
           file_name: request.file_name,
           file_size: request.file_size,
-          file_type: request.file_type
+          file_type: request.file_type,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .select(`
           *,
-          user:profiles(id, full_name, avatar_url, email)
+          user:profiles!messages_sender_id_fkey(id, full_name, avatar_url, email)
         `)
         .single();
 
@@ -389,7 +397,7 @@ export class MessagingService {
       console.log('🔍 MessagingService.getChannelParticipants: Getting participants for channel', channelId);
       
       const { data, error } = await supabase
-        .from('channel_participants')
+        .from('channel_members')
         .select(`
           *,
           user:profiles(id, full_name, avatar_url, email, is_active)
@@ -504,7 +512,7 @@ export class MessagingService {
         .from('messages')
         .select(`
           *,
-          user:profiles(id, full_name, avatar_url, email)
+          user:profiles!messages_sender_id_fkey(id, full_name, avatar_url, email)
         `)
         .textSearch('content', query)
         .eq('is_deleted', false)
