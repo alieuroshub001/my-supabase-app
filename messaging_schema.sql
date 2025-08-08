@@ -226,6 +226,7 @@ CREATE POLICY "Users can delete their own messages" ON messages
   FOR DELETE USING (sender_id = auth.uid());
 
 -- Message reactions policies
+DROP POLICY IF EXISTS "Users can view reactions in their channels" ON message_reactions;
 CREATE POLICY "Users can view reactions in their channels" ON message_reactions
   FOR SELECT USING (
     message_id IN (
@@ -235,13 +236,16 @@ CREATE POLICY "Users can view reactions in their channels" ON message_reactions
     )
   );
 
+DROP POLICY IF EXISTS "Users can add reactions" ON message_reactions;
 CREATE POLICY "Users can add reactions" ON message_reactions
   FOR INSERT WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can remove their own reactions" ON message_reactions;
 CREATE POLICY "Users can remove their own reactions" ON message_reactions
   FOR DELETE USING (user_id = auth.uid());
 
 -- Message attachments policies
+DROP POLICY IF EXISTS "Users can view attachments in their channels" ON message_attachments;
 CREATE POLICY "Users can view attachments in their channels" ON message_attachments
   FOR SELECT USING (
     message_id IN (
@@ -251,10 +255,12 @@ CREATE POLICY "Users can view attachments in their channels" ON message_attachme
     )
   );
 
+DROP POLICY IF EXISTS "Users can upload attachments" ON message_attachments;
 CREATE POLICY "Users can upload attachments" ON message_attachments
   FOR INSERT WITH CHECK (uploaded_by = auth.uid());
 
 -- Message mentions policies
+DROP POLICY IF EXISTS "Users can view mentions in their channels" ON message_mentions;
 CREATE POLICY "Users can view mentions in their channels" ON message_mentions
   FOR SELECT USING (
     message_id IN (
@@ -264,6 +270,7 @@ CREATE POLICY "Users can view mentions in their channels" ON message_mentions
     )
   );
 
+DROP POLICY IF EXISTS "Users can create mentions" ON message_mentions;
 CREATE POLICY "Users can create mentions" ON message_mentions
   FOR INSERT WITH CHECK (
     message_id IN (
@@ -272,9 +279,11 @@ CREATE POLICY "Users can create mentions" ON message_mentions
   );
 
 -- User presence policies
+DROP POLICY IF EXISTS "Users can view all user presence" ON user_presence;
 CREATE POLICY "Users can view all user presence" ON user_presence
   FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Users can update their own presence" ON user_presence;
 CREATE POLICY "Users can update their own presence" ON user_presence
   FOR ALL USING (user_id = auth.uid());
 
