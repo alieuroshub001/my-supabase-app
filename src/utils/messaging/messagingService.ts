@@ -15,11 +15,11 @@ const supabase = createClient();
 // Helper function for better error logging
 const logError = (operation: string, error: any) => {
   console.error(`❌ MessagingService.${operation}:`, {
-    message: error?.message || 'Unknown error',
+    message: (error && (error.message || error.error_description || error.code)) || 'Unknown error',
     code: error?.code,
     details: error?.details,
     hint: error?.hint,
-    error: error
+    error
   });
 };
 
@@ -37,12 +37,11 @@ export class MessagingService {
         `)
         .eq('channel_members.user_id', userId)
         .eq('is_archived', false)
-        .order('updated_at', { ascending: false });
+        .order('last_message_at', { ascending: false });
 
       if (error) {
         logError('getChannels', error);
         
-        // Check if the error is due to missing tables
         if (error.code === '42P01') {
           console.error('💡 The messaging tables don\'t exist. Please run the messaging schema first.');
           console.error('💡 Run the messaging_schema_fixed.sql file in your Supabase SQL editor.');
@@ -63,7 +62,7 @@ export class MessagingService {
     try {
       console.log('🔍 MessagingService.createChannel: Creating channel', request.name);
       
-      // Create the channel
+      // Create the channel (compatible with schemas lacking participant_ids/updated_at)
       const { data: channel, error: channelError } = await supabase
         .from('channels')
         .insert({
@@ -71,9 +70,7 @@ export class MessagingService {
           description: request.description,
           type: request.type,
           created_by: creatorId,
-          participant_ids: request.type === 'direct' ? request.participant_ids : undefined,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          created_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -84,9 +81,7 @@ export class MessagingService {
       }
 
       // Add participants to channel_members table
-      const participants = request.type === 'direct' 
-        ? request.participant_ids || []
-        : [creatorId, ...(request.participant_ids || [])];
+      const participants = [creatorId, ...(request.participant_ids || [])];
 
       const participantInserts = participants.map(userId => ({
         channel_id: channel.id,
