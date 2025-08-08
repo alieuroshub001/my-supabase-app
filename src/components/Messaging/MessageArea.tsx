@@ -9,7 +9,7 @@ interface MessageAreaProps {
   participants: ChannelParticipant[];
   userPresence: Record<string, UserPresence>;
   currentUserId: string;
-  onSendMessage: (request: any) => void;
+  onSendMessage: (request: any) => Promise<Message | null>;
   onEditMessage: (messageId: string, content: string) => void;
   onDeleteMessage: (messageId: string) => void;
   onAddReaction: (messageId: string, emoji: string) => void;
@@ -56,7 +56,7 @@ export default function MessageArea({
       message_type: 'text'
     });
 
-    if (res) {
+    if (res !== null) {
       setMessageInput('');
     }
   };
